@@ -6,7 +6,8 @@ import Control.Monad.State
 import Control.Monad.Error
 import Types
 
-type Env = [(Id, Type)]
+type Constraint = (VarT, Type)
+type Env = [(Var, Type)]
 
 newtype IM a = IM (StateT Int (Either String) a)
   deriving (Monad, Functor, MonadError String)
@@ -21,44 +22,59 @@ gensym = IM $ do
   return x
 
 gentype :: IM Type
-gentype = fmap (Alpha . ("#" ++) . show) gensym
+gentype = fmap (Alpha . VarT . ("#" ++) . show) gensym
 
-lookupEnv :: Env -> Id -> IM Type
+raise :: (MonadError e m, Error e) => String -> m a
+raise = throwError . strMsg
+
+lookupEnv :: Env -> Var -> IM Type
 lookupEnv env id = do
-  maybe (throwError $ "type not found for var " ++ id) return $ lookup id env
+  maybe (raise $ "type not found for " ++ show id) return $ lookup id env
 
-unify :: Type -> Type -> Bool
-unify (Alpha _) _ = True
-unify _ (Alpha _) = True
+unify :: Type -> Type -> IM [Constraint]
+unify (Alpha a) b = return [(a, b)]
+unify a (Alpha b) = return [(b, a)]
 unify (List a) (List b) = unify a b
-unify (Tuple a b) (Tuple c d) = unify a c && unify b d
-unify (a :-> b) (c :-> d) = unify a c && unify b d
-unify a b = a == b
+unify (Tuple a b) (Tuple c d) = liftM2 (++) (unify a c) (unify b d)
+unify (a :-> b) (c :-> d) = liftM2 (++) (unify a c) (unify b d)
+unify a b
+  | a == b = return []
+  | otherwise = raise $ "failed to unify " ++ show a ++ " with " ++ show b
 
-infer :: Env -> Expr -> IM Type
-infer _ Nil = fmap List gentype
-infer _ (StrE _) = return Str
+noConstraint = fmap ((,) [])
 
-infer env (Ref id) = lookupEnv env id
+infer :: Env -> Expr -> IM ([Constraint], Type)
+infer _ Nil = noConstraint $ fmap List gentype
+infer _ (StrE _) = noConstraint $ return Str
+
+infer env (Ref var) = noConstraint $ lookupEnv env var
 
 infer env (App a b) = do
-  ta <- infer env a
-  unless (isFunctionType ta) $ do
-    throwError $ "expected lambda for " ++ show a ++
-                    ", but got " ++ show ta
-  let arg :-> result = ta
-  tb <- infer env b
-  unless (unify arg tb) $ do
-    throwError $ "expected type " ++ show ta ++ " for " ++
+  (aConstraints, aType) <- infer env a
+  
+  unless (isFunctionType aType) $ do
+    raise $ "expected lambda for " ++ show a ++
+                    ", but got " ++ show aType
+  
+  let aArg :-> aResult = aType
+  (bConstraints, bType) <- infer env b
+  
+  uConstraints <- catchError (unify aArg bType) (confess b aType bType)
+  
+  return (aConstraints ++ bConstraints ++ uConstraints, aResult)
+  
+  where
+  
+  isFunctionType (_ :-> _) = True
+  isFunctionType _ = False
+  
+  confess b ta tb e = raise $ "expected type " ++ show ta ++ " for " ++
                     show b ++ ", but got " ++ show tb
-  return result
-    where
-    isFunctionType (_ :-> _) = True
-    isFunctionType _ = False
+  
   
 infer env (Lambda id expr) = do
   ti <- gentype
-  te <- infer ((id, ti):env) expr
-  return $ ti :-> te
+  (cs, te) <- infer ((id, ti):env) expr
+  return (cs, ti :-> te)
 
 tryInfer env expr = runI $ infer env expr

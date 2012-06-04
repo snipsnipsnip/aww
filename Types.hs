@@ -1,20 +1,26 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Types where
+
+import Data.String
 
 data Type
   = (:->) Type Type
   | List Type
   | Tuple Type Type
-  | Alpha Id
+  | Alpha VarT
   | Str
   deriving (Show, Eq)
 
 data Expr
   = App Expr Expr
   | Cons Expr Expr
-  | Lambda Id Expr
-  | Ref Id
+  | Lambda Var Expr
+  | Ref Var
   | StrE String
   | Nil
   deriving (Show, Eq)
 
+newtype VarT = VarT Id deriving (Eq, Show, IsString)
+newtype Var = Var Id deriving (Eq, Show, IsString)
 type Id = String

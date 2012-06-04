@@ -1,18 +1,20 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Infer
 import Types
 
-type TestCase = (Env, Expr, Either String Type)
+type TestCase = (Env, Expr, Either String ([Constraint], Type))
 
 cases :: [TestCase]
 cases = 
-  [([], Nil, Right (List (Alpha "#0")))
-  ,([], Ref "hoge", Left "type not found for var hoge")
-  ,([("hoge", Str)], Ref "hoge", Right Str)
-  ,([], Lambda "x" (Ref "x"), Right ((Alpha "#0") :-> (Alpha "#0")))
-  ,([], App (Lambda "x" (Ref "x")) (Ref "y"), Left "type not found for var y")
-  ,([("y", Str)], App (Lambda "x" (Ref "x")) (Ref "y"), Right (Alpha "#0"))
+  [([], Nil, Right ([], List (Alpha "#0")))
+  ,([], Ref "hoge", Left "type not found for Var \"hoge\"")
+  ,([("hoge", Str)], Ref "hoge", Right ([], Str))
+  ,([], Lambda "x" (Ref "x"), Right ([], (Alpha "#0") :-> (Alpha "#0")))
+  ,([], App (Lambda "x" (Ref "x")) (Ref "y"), Left "type not found for Var \"y\"")
+  ,([("y", Str)], App (Lambda "x" (Ref "x")) (Ref "y"), Right ([("#0",Str)],Alpha "#0"))
   ]
     
 test :: IO ()

@@ -21,7 +21,7 @@ gensym = IM $ do
   return x
 
 gentype :: IM Type
-gentype = fmap (Alpha . ("$g" ++) . show) gensym
+gentype = fmap (Alpha . ("#" ++) . show) gensym
 
 lookupEnv :: Env -> Id -> IM Type
 lookupEnv env id = do

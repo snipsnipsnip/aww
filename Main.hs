@@ -7,12 +7,12 @@ type TestCase = (Env, Expr, Either String Type)
 
 cases :: [TestCase]
 cases = 
-  [([], Nil, Right (List (Alpha "$g0")))
+  [([], Nil, Right (List (Alpha "#0")))
   ,([], Ref "hoge", Left "type not found for var hoge")
   ,([("hoge", Str)], Ref "hoge", Right Str)
-  ,([], Lambda "x" (Ref "x"), Right ((Alpha "$g0") :-> (Alpha "$g0")))
+  ,([], Lambda "x" (Ref "x"), Right ((Alpha "#0") :-> (Alpha "#0")))
   ,([], App (Lambda "x" (Ref "x")) (Ref "y"), Left "type not found for var y")
-  ,([("y", Str)], App (Lambda "x" (Ref "x")) (Ref "y"), Right (Alpha "$g0"))
+  ,([("y", Str)], App (Lambda "x" (Ref "x")) (Ref "y"), Right (Alpha "#0"))
   ]
     
 test :: IO ()

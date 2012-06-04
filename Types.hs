@@ -4,17 +4,18 @@ data Type
   = (:->) Type Type
   | List Type
   | Tuple Type Type
-  | Alpha Id
+  | Alpha VarT
   | Str
   deriving (Show, Eq)
 
 data Expr
   = App Expr Expr
   | Cons Expr Expr
-  | Lambda Id Expr
-  | Ref Id
+  | Lambda Var Expr
+  | Ref Var
   | StrE String
   | Nil
   deriving (Show, Eq)
 
-type Id = String
+newtype VarT = VarT String deriving (Eq, Show)
+newtype Var = Var String deriving (Eq, Show)

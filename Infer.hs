@@ -5,6 +5,7 @@ module Infer where
 import Control.Monad.State
 import Control.Monad.Error
 import Types
+import Common
 
 type Constraint = (VarT, Type)
 type Env = [(Var, Type)]
@@ -23,9 +24,6 @@ gensym = IM $ do
 
 gentype :: IM Type
 gentype = fmap (Alpha . VarT . ("#" ++) . show) gensym
-
-raise :: (MonadError e m, Error e) => String -> m a
-raise = throwError . strMsg
 
 lookupEnv :: Env -> Var -> IM Type
 lookupEnv env id = do

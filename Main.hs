@@ -17,6 +17,22 @@ cases =
   ,([("y", Str)], App (Lambda "x" "x") "y", Right ([("#0",Str)], "#0"))
   ]
     
+{-
+  ( [ ("null", List "a" :-> Bool)
+    , ("nil", List "b")]
+    , ("car", List "c") :-> Alpha "c"]
+    , ("cdr", List "d") :-> (Alpha "d")]
+    , ("cons", Pair "e" (List "e") :-> List "e")
+    ]
+  , Fix "map" $
+      Lambda "x" $
+        Lambda "m" $
+          If ("null" $$ "m")
+             Nil $
+             ("cons" $$ ("f" $$ "car" $$ "m"))
+                     $$ ("map" $$ "f") $$ ("cdr" $$ "m")
+  )
+-}
 
 test :: IO ()
 test = putStr $ joinLines $ zipWith run [1..] cases

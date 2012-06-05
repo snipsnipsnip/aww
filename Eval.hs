@@ -39,14 +39,8 @@ E(env, if e1 then e2 else e3) =
     else wrong
 
 E(env, λx.e) = (λv. E(env{v/x}, e)) :: V
-
 E(env, fix x. e) = Y(E(env, λx. e))
-
-E(env, let x = e1 in e2) =
-  let v1 = E(env, e1) in
-  if v1 in W
-    then wrong
-    else E(env{v1/x}, e2)
+E(env, let x = e1 in e2) = E(env, (λx. e1) e2)
 -}
 
 newtype E a = E (ReaderT Env (Either String) a)

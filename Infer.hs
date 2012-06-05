@@ -35,7 +35,7 @@ unify :: Type -> Type -> IM [Constraint]
 unify (Alpha a) b = return [(a, b)]
 unify a (Alpha b) = return [(b, a)]
 unify (List a) (List b) = unify a b
-unify (Tuple a b) (Tuple c d) = liftM2 (++) (unify a c) (unify b d)
+unify (Pair a b) (Pair c d) = liftM2 (++) (unify a c) (unify b d)
 unify (a :-> b) (c :-> d) = liftM2 (++) (unify a c) (unify b d)
 unify a b
   | a == b = return []
@@ -46,6 +46,7 @@ noConstraint = fmap ((,) [])
 infer :: Env -> Expr -> IM ([Constraint], Type)
 infer _ Nil = noConstraint $ fmap List gentype
 infer _ (StrE _) = noConstraint $ return Str
+infer _ (BoolE _) = noConstraint $ return Bool
 
 infer env (Ref var) = noConstraint $ lookupEnv env var
 
@@ -76,5 +77,14 @@ infer env (Lambda id expr) = do
   ti <- gentype
   (cs, te) <- infer ((id, ti):env) expr
   return (cs, ti :-> te)
+
+infer env (If cond t f) = do
+  (cConstraints, cType) <- infer env cond
+  cBoolConstraints <- unify cType Bool
+  (tConstraints, tType) <- infer env t
+  (fConstraints, fType) <- infer env f
+  tfConstraints <- unify tType fType
+  let constraints = cBoolConstraints ++ tfConstraints ++ cConstraints ++ tConstraints ++ fConstraints
+  return (constraints, tType)
 
 tryInfer env expr = runI $ infer env expr

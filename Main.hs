@@ -9,14 +9,15 @@ type TestCase = (Env, Expr, Either String ([Constraint], Type))
 
 cases :: [TestCase]
 cases = 
-  [([], Nil, Right ([], List (Alpha "#0")))
-  ,([], Ref "hoge", Left "type not found for Var \"hoge\"")
+  [([], Nil, Right ([], List "#0"))
+  ,([], "hoge", Left "type not found for hoge")
   ,([("hoge", Str)], Ref "hoge", Right ([], Str))
-  ,([], Lambda "x" (Ref "x"), Right ([], (Alpha "#0") :-> (Alpha "#0")))
-  ,([], App (Lambda "x" (Ref "x")) (Ref "y"), Left "type not found for Var \"y\"")
-  ,([("y", Str)], App (Lambda "x" (Ref "x")) (Ref "y"), Right ([("#0",Str)],Alpha "#0"))
+  ,([], Lambda "x" "x", Right ([], "#0" :-> "#0"))
+  ,([], App (Lambda "x" "x") "y", Left "type not found for y")
+  ,([("y", Str)], App (Lambda "x" "x") "y", Right ([("#0",Str)], "#0"))
   ]
     
+
 test :: IO ()
 test = putStr $ joinLines $ zipWith run [1..] cases
   where 

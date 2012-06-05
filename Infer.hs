@@ -45,10 +45,14 @@ infer :: Env -> Expr -> IM ([Constraint], Type)
 infer _ Nil = noConstraint $ fmap List gentype
 infer _ (StrE _) = noConstraint $ return Str
 infer _ (BoolE _) = noConstraint $ return Bool
+infer env (a :@ b) = do
+  (aConstraints, aType) <- infer env a
+  (bConstraints, bType) <- infer env b
+  return (aConstraints ++ bConstraints, Pair aType bType)
 
 infer env (Ref var) = noConstraint $ lookupEnv env var
 
-infer env (App a b) = do
+infer env (a :$ b) = do
   (aConstraints, aType) <- infer env a
   
   unless (isFunctionType aType) $ do
@@ -83,7 +87,7 @@ infer env (If cond t f) = do
   (fConstraints, fType) <- infer env f
   tfConstraints <- unify tType fType
   let constraints = cBoolConstraints ++ tfConstraints ++ cConstraints ++ tConstraints ++ fConstraints
-  return (constraints, tType)
+  return (constraints, tType)  
 
 resolve :: [Constraint] -> Type -> Type
 resolve [] t = t

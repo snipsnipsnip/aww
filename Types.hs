@@ -13,12 +13,14 @@ data Type
   | Bool
   deriving (Show, Eq)
 
+infixr 2 :->
+
 instance IsString Type where
   fromString = Alpha . VarT
 
 data Expr
-  = App Expr Expr
-  | Cons Expr Expr
+  = Expr :$ Expr
+  | Expr :@ Expr
   | Lambda Var Expr
   | If Expr Expr Expr
   | Ref Var
@@ -26,6 +28,9 @@ data Expr
   | BoolE Bool
   | Nil
   deriving (Show, Eq)
+
+infixl 2 :$
+infix 2 :@
 
 instance IsString Expr where
   fromString = Ref . Var

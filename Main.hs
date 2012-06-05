@@ -2,7 +2,9 @@
 
 module Main where
 
+import Control.Monad.State
 import Infer
+import Eval
 import Types
 
 type TestCase = (Env, Expr, Either String Type)
@@ -13,16 +15,49 @@ cases =
   ,([], "hoge", Left "type not found for hoge")
   ,([("hoge", Str)], Ref "hoge", Right Str)
   ,([], Lambda "x" "x", Right ("#0" :-> "#0"))
-  ,([], App (Lambda "x" "x") "y", Left "type not found for y")
-  ,([("y", Str)], App (Lambda "x" "x") "y", Right Str)
+  ,([], (Lambda "x" "x") :$ "y", Left "type not found for y")
+  ,([("y", Str)], (Lambda "x" "x") :$ "y", Right Str)
+  ,([("y", Str)], (Lambda "x" ("x" :@ "x")) :$ "y", Right (Pair Str Str))
   ]
-    
+
+st :: Env
+st = [ ("null", List "a" :-> Bool)
+     , ("nil", List "b")
+     , ("car", List "c" :-> "c")
+     , ("cdr", List "d" :-> "d")
+     , ("cons", "e" :-> List "e" :-> List "e")
+     ]
+
+str :: Frame
+str = declare $ do
+
+  fun "null" $ \v -> case v of
+    NilV -> return $ BoolV True
+    _ -> return $ BoolV False
+  
+  fun "car" $ \v -> case v of
+    ConsV a _ -> return a
+    _ -> fail "car: not a pair"
+  
+  fun "cdr" $ \v -> case v of
+    ConsV _ d -> return d
+    _ -> fail "car: not a pair"
+  
+  fun "cons" $ \a -> return $ FunV $ \b ->
+    return $ ConsV a b
+
+  where
+  declare :: State Frame a -> Frame
+  declare m = execState m []
+  fun :: String -> (Value -> E Value) -> State Frame ()
+  fun name f = modify ((Var name, FunV f):)
+
 {-
   ( [ ("null", List "a" :-> Bool)
     , ("nil", List "b")]
     , ("car", List "c") :-> Alpha "c"]
     , ("cdr", List "d") :-> (Alpha "d")]
-    , ("cons", Pair "e" (List "e") :-> List "e")
+    , ("cons", Pair "e" ((List "e") :-> List "e"))
     ]
   , Fix "map" $
       Lambda "x" $

@@ -18,39 +18,34 @@ cases =
   ,([], (Lambda "x" "x") :$ "y", Left "type not found for y")
   ,([("y", Str)], (Lambda "x" "x") :$ "y", Right Str)
   ,([("y", Str)], (Lambda "x" ("x" :@ "x")) :$ "y", Right (Pair Str Str))
+  ,(st, "cons" :$ StrE "fuga" :$ ("cons" :$ StrE "hoge" :$ Nil), Right (List Str))
+  ,(st, "cons" :$ BoolE True :$ ("cons" :$ StrE "hoge" :$ Nil)
+   , Left "constraints conflict: Alpha e resolves to [Bool,Str]")
   ]
 
 st :: Env
-st = [ ("null", List "a" :-> Bool)
-     , ("nil", List "b")
-     , ("car", List "c" :-> "c")
-     , ("cdr", List "d" :-> "d")
-     , ("cons", "e" :-> List "e" :-> List "e")
-     ]
-
 str :: Frame
-str = declare $ do
+(str, st) = declare $ do
 
-  fun "null" $ \v -> case v of
+  fun "null" (List "a" :-> Bool) $ \v -> case v of
     NilV -> return $ BoolV True
     _ -> return $ BoolV False
   
-  fun "car" $ \v -> case v of
+  fun "car" (List "c" :-> "c") $ \v -> case v of
     ConsV a _ -> return a
     _ -> fail "car: not a pair"
   
-  fun "cdr" $ \v -> case v of
+  fun "cdr" (List "d" :-> "d") $ \v -> case v of
     ConsV _ d -> return d
     _ -> fail "car: not a pair"
   
-  fun "cons" $ \a -> return $ FunV $ \b ->
-    return $ ConsV a b
+  fun "cons" ("e" :-> List "e" :-> List "e") $
+    \a -> return $ FunV $ \b ->
+      return $ ConsV a b
 
   where
-  declare :: State Frame a -> Frame
-  declare m = execState m []
-  fun :: String -> (Value -> E Value) -> State Frame ()
-  fun name f = modify ((Var name, FunV f):)
+  declare m = unzip $ execState m []
+  fun name ty f = modify (((Var name, FunV f), (Var name, ty)):)
 
 {-
   ( [ ("null", List "a" :-> Bool)
@@ -62,10 +57,10 @@ str = declare $ do
   , Fix "map" $
       Lambda "x" $
         Lambda "m" $
-          If ("null" $$ "m")
+          If ("null" :$ "m")
              Nil $
-             ("cons" $$ ("f" $$ "car" $$ "m"))
-                     $$ ("map" $$ "f") $$ ("cdr" $$ "m")
+             ("cons" :$ ("f" :$ "car" :$ "m"))
+                     :$ ("map" :$ "f") :$ ("cdr" :$ "m")
   )
 -}
 

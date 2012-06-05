@@ -85,4 +85,14 @@ infer env (If cond t f) = do
   let constraints = cBoolConstraints ++ tfConstraints ++ cConstraints ++ tConstraints ++ fConstraints
   return (constraints, tType)
 
-tryInfer env expr = runI $ infer env expr
+resolve :: [Constraint] -> Type -> Type
+resolve [] t = t
+resolve cs t = dive t
+  where
+  dive (a :-> b) = dive a :-> dive b
+  dive (List t) = List (dive t)
+  dive (Pair a b) = Pair (dive a) (dive b)
+  dive a@(Alpha vart) = maybe a dive $ lookup vart cs
+  dive basic = basic
+
+tryInfer env expr = runI $ fmap (uncurry resolve) $ infer env expr

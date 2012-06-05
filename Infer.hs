@@ -4,14 +4,21 @@ module Infer where
 
 import Control.Monad.State
 import Control.Monad.Error
+import Data.Function
+import List
 import Types
 import Common
 
 type Constraint = (VarT, Type)
 type Env = [(Var, Type)]
 
-newtype IM a = IM (StateT Int (Either String) a)
-  deriving (Monad, Functor, MonadError String)
+newtype IM a = IM { unIM :: StateT Int (Either String) a }
+  deriving (Functor, MonadError String)
+
+instance Monad IM where
+  m >>= f = IM $ unIM m >>= unIM . f
+  return = IM . return
+  fail = throwError
 
 runI :: IM a -> Either String a
 runI (IM m) = evalStateT m 0
@@ -27,7 +34,7 @@ gentype = fmap (Alpha . VarT . ("#" ++) . show) gensym
 
 lookupEnv :: Env -> Var -> IM Type
 lookupEnv env id = do
-  maybe (raise $ "type not found for " ++ show id) return $ lookup id env
+  maybe (fail $ "type not found for " ++ show id) return $ lookup id env
 
 unify :: Type -> Type -> IM [Constraint]
 unify (Alpha a) b = return [(a, b)]
@@ -37,7 +44,7 @@ unify (Pair a b) (Pair c d) = liftM2 (++) (unify a c) (unify b d)
 unify (a :-> b) (c :-> d) = liftM2 (++) (unify a c) (unify b d)
 unify a b
   | a == b = return []
-  | otherwise = raise $ "failed to unify " ++ show a ++ " with " ++ show b
+  | otherwise = fail $ "failed to unify " ++ show a ++ " with " ++ show b
 
 noConstraint = fmap ((,) [])
 
@@ -56,13 +63,13 @@ infer env (a :$ b) = do
   (aConstraints, aType) <- infer env a
   
   unless (isFunctionType aType) $ do
-    raise $ "expected lambda for " ++ show a ++
+    fail $ "expected lambda for " ++ show a ++
                     ", but got " ++ show aType
   
   let aArg :-> aResult = aType
   (bConstraints, bType) <- infer env b
   
-  uConstraints <- catchError (unify aArg bType) (confess b aType bType)
+  uConstraints <- catchError (unify aArg bType) (confess b aArg bType)
   
   return (aConstraints ++ bConstraints ++ uConstraints, aResult)
   
@@ -71,7 +78,7 @@ infer env (a :$ b) = do
   isFunctionType (_ :-> _) = True
   isFunctionType _ = False
   
-  confess b ta tb e = raise $ "expected type " ++ show ta ++ " for " ++
+  confess b ta tb e = fail $ "expected type " ++ show ta ++ " for " ++
                     show b ++ ", but got " ++ show tb
   
   
@@ -89,14 +96,23 @@ infer env (If cond t f) = do
   let constraints = cBoolConstraints ++ tfConstraints ++ cConstraints ++ tConstraints ++ fConstraints
   return (constraints, tType)  
 
-resolve :: [Constraint] -> Type -> Type
-resolve [] t = t
+resolve :: [Constraint] -> Type -> IM Type
+resolve [] t = return t
 resolve cs t = dive t
   where
-  dive (a :-> b) = dive a :-> dive b
-  dive (List t) = List (dive t)
-  dive (Pair a b) = Pair (dive a) (dive b)
-  dive a@(Alpha vart) = maybe a dive $ lookup vart cs
-  dive basic = basic
+  dive2 f x y = liftM2 f (dive x) (dive y)
+  dive (a :-> b) = dive2 (:->) a b
+  dive (Pair a b) = dive2 Pair a b
+  dive (List t) = fmap List $ dive t
+  dive a@(Alpha vart) = case candidates of
+    [] -> return a
+    [t] -> dive t
+    ts -> fail $ "constraints conflict: " ++ show a ++ " resolves to " ++ show ts
+    where
+    candidates = nub $ map snd $ filter suitable cs
+    suitable (_, Alpha _) = False
+    suitable (name, _) = name == vart 
+    
+  dive basic = return basic
 
-tryInfer env expr = runI $ fmap (uncurry resolve) $ infer env expr
+tryInfer env expr = runI $ uncurry resolve =<< infer env expr

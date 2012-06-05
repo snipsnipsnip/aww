@@ -43,8 +43,13 @@ E(frame, fix x. e) = Y(E(frame, λx. e))
 E(frame, let x = e1 in e2) = E(frame, (λx. e1) e2)
 -}
 
-newtype E a = E (ReaderT Frame (Either String) a)
-  deriving (Functor, Monad, MonadError String)
+newtype E a = E { unE :: ReaderT Frame (Either String) a }
+  deriving (Functor, MonadError String)
+
+instance Monad E where
+  m >>= f = E $ unE m >>= unE . f
+  return = E . return
+  fail = throwError
 
 type Frame = [(Var, Value)]
 
@@ -69,7 +74,7 @@ lookupFrame :: Var -> E Value
 lookupFrame var = E $ do
   maybe err return =<< asks (lookup var)
   where
-  err = raise $ "variable not found for " ++ show var
+  err = fail $ "variable not found for " ++ show var
 
 withFrame :: (Frame -> Frame) -> E a -> E a
 withFrame f (E m) = E $ local f m
@@ -91,7 +96,7 @@ eval (a :$ b) = do
   va <- eval a
   case va of
     FunV f -> f =<< eval b
-    _ -> raise $ "expected function, but got " ++ show va
+    _ -> fail $ "expected function, but got " ++ show va
 
 eval (If cond t f) = do
   vc <- eval cond

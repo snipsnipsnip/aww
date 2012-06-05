@@ -29,8 +29,8 @@ gensym = IM $ do
   put $ succ x
   return x
 
-gentype :: IM Type
-gentype = fmap (Alpha . VarT . ("#" ++) . show) gensym
+gentypename :: IM VarT
+gentypename = fmap (VarT . ("#" ++) . show) gensym
 
 lookupEnv :: Env -> Var -> IM Type
 lookupEnv env id = do
@@ -49,7 +49,7 @@ unify a b
 noConstraint = fmap ((,) [])
 
 infer :: Env -> Expr -> IM ([Constraint], Type)
-infer _ Nil = noConstraint $ fmap List gentype
+infer _ Nil = noConstraint $ fmap (List . Alpha) gentypename
 infer _ (StrE _) = noConstraint $ return Str
 infer _ (BoolE _) = noConstraint $ return Bool
 infer env (a :@ b) = do
@@ -82,10 +82,12 @@ infer env (a :$ b) = do
                     show b ++ ", but got " ++ show tb
   
   
-infer env (Lambda id expr) = do
-  ti <- gentype
-  (cs, te) <- infer ((id, ti):env) expr
-  return (cs, ti :-> te)
+infer env (Lambda arg expr) = do
+  argTypeName <- gentypename
+  let argTypeTemp = Alpha argTypeName
+  (cs, exprType) <- infer ((arg, argTypeTemp):env) expr
+  argType <- resolve cs argTypeTemp
+  return (cs, argType :-> exprType)
 
 infer env (If cond t f) = do
   (cConstraints, cType) <- infer env cond
@@ -104,15 +106,21 @@ resolve cs t = dive t
   dive (a :-> b) = dive2 (:->) a b
   dive (Pair a b) = dive2 Pair a b
   dive (List t) = fmap List $ dive t
-  dive a@(Alpha vart) = case candidates of
+  dive a@(Alpha vart) = case candidates cs vart of
     [] -> return a
     [t] -> dive t
     ts -> fail $ "constraints conflict: " ++ show a ++ " resolves to " ++ show ts
-    where
-    candidates = nub $ map snd $ filter suitable cs
-    suitable (_, Alpha _) = False
-    suitable (name, _) = name == vart 
-    
   dive basic = return basic
+
+candidates :: [Constraint] -> VarT -> [Type]
+candidates cs vart = nub $ concatMap suitable cs
+  where
+  suitable (name, t) = do
+    guard $ name == vart
+    case t of
+      Alpha v -> do
+        guard $ v /= vart
+        candidates cs v
+      _ -> return t
 
 tryInfer env expr = runI $ uncurry resolve =<< infer env expr

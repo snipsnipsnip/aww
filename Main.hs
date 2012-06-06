@@ -10,18 +10,28 @@ import Types
 type TestCase = (Env, Expr, Either String Type)
 
 cases :: [TestCase]
-cases = 
-  [([], Nil, Right (List "#0"))
-  ,([], "hoge", Left "type not found for hoge")
-  ,([("hoge", Str)], Ref "hoge", Right Str)
-  ,([], Lambda "x" "x", Right ("#0" :-> "#0"))
-  ,([], (Lambda "x" "x") :$ "y", Left "type not found for y")
-  ,([("y", Str)], (Lambda "x" "x") :$ "y", Right Str)
-  ,([("y", Str)], (Lambda "x" ("x" :@ "x")) :$ "y", Right (Pair Str Str))
-  ,(st, "cons" :$ StrE "fuga" :$ ("cons" :$ StrE "hoge" :$ Nil), Right (List Str))
-  ,(st, "cons" :$ BoolE True :$ ("cons" :$ StrE "hoge" :$ Nil)
-   , Left "constraints conflict: Alpha e resolves to [Bool,Str]")
-  ]
+cases = collect $ do
+  typed [] (List "#0") Nil
+  err [] "type not found for hoge" "hoge"
+  
+  typed [("hoge", Str)] Str $ Ref "hoge"
+  typed [] ("#0" :-> "#0") $ Lambda "x" "x"
+  
+  err [] "type not found for hoge" $ Lambda "x" "x" :$ "hoge"
+  typed [("hoge", Str)] Str $ (Lambda "x" "x") :$ "hoge"
+  typed [] (Pair Str Str) $ (Lambda "x" ("x" :@ "x")) :$ StrE "hoge"
+  
+  typed st (List Str) $ "cons" :$ StrE "fuga" :$ ("cons" :$ StrE "hoge" :$ Nil)
+  
+  err st "constraints conflict: Alpha e resolves to [Bool,Str]" $
+      "cons" :$ BoolE True :$ ("cons" :$ StrE "hoge" :$ Nil)
+  
+  typed st (List Str :-> List Str) $ Lambda "x" $ "cons" :$ StrE "hoge" :$ "x"
+  
+  where
+  collect m = reverse $ execState m []
+  typed env ty expr = modify (((env, expr, Right ty)):)
+  err env msg expr = modify ((env, expr, Left msg):)
 
 st :: Env
 str :: Frame
@@ -45,7 +55,7 @@ str :: Frame
 
   where
   declare m = unzip $ execState m []
-  fun name ty f = modify (((Var name, FunV f), (Var name, ty)):)
+  fun name ty f = modify (((name, FunV f), (name, ty)):)
 
 {-
   ( [ ("null", List "a" :-> Bool)

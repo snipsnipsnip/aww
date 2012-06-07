@@ -1,11 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Types where
+module Types
+( Type (..)
+, Expr (..)
+, VarT (..)
+, Var ()
+, Id
+) where
 
 import Data.String
 
 data Type
-  = (:->) Type Type
+  = Type :-> Type
   | List Type
   | Pair Type Type
   | Alpha VarT

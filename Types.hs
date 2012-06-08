@@ -6,6 +6,7 @@ module Types
 , VarT (..)
 , Var ()
 , Id
+, Env
 ) where
 
 import Data.String
@@ -52,3 +53,5 @@ instance Show Var where
   show (Var id) = id
 
 type Id = String
+
+type Env = [(Var, Type)]

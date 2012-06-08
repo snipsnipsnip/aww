@@ -1,40 +1,12 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+module Infer
+( tryInfer
+, infer
+) where
 
-module Infer where
-
-import Control.Monad.State
-import Control.Monad.Error
-import Data.Function
+import Control.Monad
 import List
 import Types
-import Common
-
-type Constraint = (VarT, Type)
-type Env = [(Var, Type)]
-
-newtype IM a = IM { unIM :: StateT Int (Either String) a }
-  deriving (Functor, MonadError String)
-
-instance Monad IM where
-  m >>= f = IM $ unIM m >>= unIM . f
-  return = IM . return
-  fail = throwError
-
-runI :: IM a -> Either String a
-runI (IM m) = evalStateT m 0
-
-gensym :: IM Int
-gensym = IM $ do
-  x <- get
-  put $ succ x
-  return x
-
-gentypename :: IM VarT
-gentypename = fmap (VarT . ("#" ++) . show) gensym
-
-lookupEnv :: Env -> Var -> IM Type
-lookupEnv env id = do
-  maybe (fail $ "type not found for " ++ show id) return $ lookup id env
+import InferMonad
 
 unify :: Type -> Type -> IM [Constraint]
 unify (Alpha a) b = return [(a, b)]
@@ -69,7 +41,7 @@ infer env (a :$ b) = do
   let aArg :-> aResult = aType
   (bConstraints, bType) <- infer env b
   
-  uConstraints <- catchError (unify aArg bType) (confess b aArg bType)
+  uConstraints <- unify aArg bType `mplus` confess b aArg bType
   
   return (aConstraints ++ bConstraints ++ uConstraints, aResult)
   
@@ -78,7 +50,7 @@ infer env (a :$ b) = do
   isFunctionType (_ :-> _) = True
   isFunctionType _ = False
   
-  confess b ta tb e = fail $ "expected type " ++ show ta ++ " for " ++
+  confess b ta tb = fail $ "expected type " ++ show ta ++ " for " ++
                     show b ++ ", but got " ++ show tb
   
   

@@ -18,6 +18,15 @@ cases = collect $ do
   typed ("#0" :-> "#0") $ Lambda "x" "x"
   err "type not found for hoge" $ Lambda "x" "x" :$ "hoge"
   
+  typed ("#0" :-> "#1" :-> "#0") $ Lambda "x" $ Lambda "y" $ "x"
+  
+  typed (("#2" :-> "#1" :-> "#0")
+          :-> ("#2" :-> "#1")
+          :-> "#2"
+          :-> "#0") $
+    Lambda "x" $ Lambda "y" $ Lambda "z" $
+      ("x" :$ "z") :$ ("y" :$ "z")
+  
   withEnv [("hoge", Str)] $ do
     typed Str $ Ref "hoge"
     typed Str $ (Lambda "x" "x") :$ "hoge"

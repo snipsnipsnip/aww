@@ -15,10 +15,12 @@ import Control.Monad.State
 import Control.Monad.Error
 import Types
 
+type Env = [(Var, Type)]
 type Constraint = (VarT, Type)
 
-newtype IM a = IM { unIM :: StateT Int (Either String) a }
-  deriving (Functor, MonadPlus)
+newtype IM a = IM
+  { unIM :: StateT Int (Either String) a
+  } deriving (Functor, MonadPlus)
 
 instance Monad IM where
   m >>= f = IM $ unIM m >>= unIM . f

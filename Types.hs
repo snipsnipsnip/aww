@@ -6,7 +6,6 @@ module Types
 , VarT (..)
 , Var ()
 , Id
-, Env
 ) where
 
 import Data.String
@@ -47,11 +46,12 @@ newtype VarT = VarT Id deriving (Eq, IsString)
 instance Show VarT where
   show (VarT id) = id
 
+vart :: String -> VarT
+vart = VarT
+
 newtype Var = Var Id deriving (Eq, IsString)
 
 instance Show Var where
   show (Var id) = id
 
 type Id = String
-
-type Env = [(Var, Type)]

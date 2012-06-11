@@ -1,6 +1,7 @@
 module Infer
 ( tryInfer
 , infer
+, Env
 ) where
 
 import Control.Monad
@@ -32,31 +33,23 @@ infer env (a :@ b) = do
 infer env (Ref var) = noConstraint $ lookupEnv env var
 
 infer env (a :$ b) = do
+  aArg <- fmap Alpha gentypename
+  aResult <- fmap Alpha gentypename
   (aConstraints, aType) <- infer env a
-  
-  unless (isFunctionType aType) $ do
-    fail $ "expected lambda for " ++ show a ++
-                    ", but got " ++ show aType
-  
-  let aArg :-> aResult = aType
   (bConstraints, bType) <- infer env b
   
+  fConstraints <- unify (aArg :-> aResult) aType
   uConstraints <- unify aArg bType `mplus` confess b aArg bType
   
-  return (aConstraints ++ bConstraints ++ uConstraints, aResult)
+  return (aConstraints ++ fConstraints ++ bConstraints ++ uConstraints, aResult)
   
   where
-  
-  isFunctionType (_ :-> _) = True
-  isFunctionType _ = False
-  
   confess b ta tb = fail $ "expected type " ++ show ta ++ " for " ++
                     show b ++ ", but got " ++ show tb
   
   
 infer env (Lambda arg expr) = do
-  argTypeName <- gentypename
-  let argTypeTemp = Alpha argTypeName
+  argTypeTemp <- fmap Alpha gentypename
   (cs, exprType) <- infer ((arg, argTypeTemp):env) expr
   argType <- resolve cs argTypeTemp
   return (cs, argType :-> exprType)
@@ -92,7 +85,9 @@ candidates cs vart = nub $ concatMap suitable cs
     case t of
       Alpha v -> do
         guard $ v /= vart
-        candidates cs v
+        case candidates cs v of
+          [] -> return t
+          xs -> xs
       _ -> return t
 
 tryInfer env expr = runI $ uncurry resolve =<< infer env expr

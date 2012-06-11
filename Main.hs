@@ -20,10 +20,10 @@ cases = collect $ do
   
   typed ("#0" :-> "#1" :-> "#0") $ Lambda "x" $ Lambda "y" $ "x"
   
-  typed (("#2" :-> "#1" :-> "#0")
-          :-> ("#2" :-> "#1")
+  typed (("#2" :-> "#8" :-> "#4")
+          :-> ("#2" :-> "#8")
           :-> "#2"
-          :-> "#0") $
+          :-> "#4") $
     Lambda "x" $ Lambda "y" $ Lambda "z" $
       ("x" :$ "z") :$ ("y" :$ "z")
   
@@ -98,3 +98,5 @@ run i (env, expr, expected) = num . msg
                       showString ", actual: " .
                       shows result .
                       showChar ')'
+
+main = test

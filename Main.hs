@@ -13,17 +13,14 @@ type TestCase = (Env, Expr, Either String Type)
 cases :: [TestCase]
 cases = collect $ do
   
-  typed (List "#0") Nil
+  typed (List $ Alpha $ toEnum 0) Nil
   err "type not found for hoge" "hoge"
-  typed ("#0" :-> "#0") $ Lambda "x" "x"
+  typed (0 +> 0) $ Lambda "x" "x"
   err "type not found for hoge" $ Lambda "x" "x" :$ "hoge"
   
-  typed ("#0" :-> "#1" :-> "#0") $ Lambda "x" $ Lambda "y" $ "x"
+  typed (0 +> 1 +> 0) $ Lambda "x" $ Lambda "y" $ "x"
   
-  typed (("#2" :-> "#8" :-> "#4")
-          :-> ("#2" :-> "#8")
-          :-> "#2"
-          :-> "#4") $
+  typed ((2 +> 8 +> 4) +> (2 +> 8) +> 2 +> 4) $
     Lambda "x" $ Lambda "y" $ Lambda "z" $
       ("x" :$ "z") :$ ("y" :$ "z")
   
@@ -37,7 +34,7 @@ cases = collect $ do
           "cons" :$ StrE "fuga" :$ ("cons" :$ StrE "hoge" :$ Nil)
     err "constraints conflict: Alpha e resolves to [Bool,Str]" $
         "cons" :$ BoolE True :$ ("cons" :$ StrE "hoge" :$ Nil)
-    typed (List Str :-> List Str) $
+    typed (List Str +> List Str) $
           Lambda "x" $ "cons" :$ StrE "hoge" :$ "x"
   
   where
@@ -49,26 +46,28 @@ cases = collect $ do
 st :: Env
 str :: Frame
 (str, st) = declare $ do
-
-  fun "null" (List "a" :-> Bool) $ \v -> case v of
+  
+  fun "null" (\n -> List n +> Bool) $ \v -> case v of
     NilV -> return $ BoolV True
     _ -> return $ BoolV False
   
-  fun "car" (List "c" :-> "c") $ \v -> case v of
+  fun "car" (\n -> List n +> n) $ \v -> case v of
     ConsV a _ -> return a
     _ -> fail "car: not a pair"
   
-  fun "cdr" (List "d" :-> "d") $ \v -> case v of
+  fun "cdr" (\n -> List n +> n) $ \v -> case v of
     ConsV _ d -> return d
     _ -> fail "cdr: not a pair"
   
-  fun "cons" ("e" :-> List "e" :-> List "e") $
+  fun "cons" (\n -> n +> List n +> List n) $
     \a -> return $ FunV $ \b ->
       return $ ConsV a b
 
   where
-  declare m = unzip $ execState m []
-  fun name ty f = modify (((name, FunV f), (name, ty)):)
+  declare m = unzip $ fst $ execState m ([], toEnum (-1))
+  fun name ty f = do
+    (decls, n) <- get
+    put (((name, FunV f), (name, ty (Alpha n))) : decls, pred n)
 
 {-
   , Fix "map" $

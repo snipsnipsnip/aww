@@ -19,8 +19,11 @@ type Env = [(Var, Type)]
 type Constraint = (VarT, Type)
 
 newtype IM a = IM
-  { unIM :: StateT Int (Either String) a
+  { unIM :: StateT VarT (Either String) a
   } deriving (Functor, MonadPlus)
+
+instance Show a => Show (IM a) where
+  show = either id (show . fst) . flip runStateT (toEnum 0) . unIM
 
 instance Monad IM where
   m >>= f = IM $ unIM m >>= unIM . f
@@ -28,16 +31,13 @@ instance Monad IM where
   fail = IM . throwError
 
 runI :: IM a -> Either String a
-runI (IM m) = evalStateT m 0
+runI (IM m) = evalStateT m $ toEnum 0
 
-gensym :: IM Int
-gensym = IM $ do
+gentypename :: IM VarT
+gentypename = IM $ do
   x <- get
   put $ succ x
   return x
-
-gentypename :: IM VarT
-gentypename = fmap (VarT . ("#" ++) . show) gensym
 
 lookupEnv :: Env -> Var -> IM Type
 lookupEnv env id = do

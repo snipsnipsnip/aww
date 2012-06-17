@@ -3,6 +3,7 @@
 import Data.String
 import qualified Data.Map as M
 import Data.Monoid
+import Control.Monad
 
 newtype Var = V String deriving (Eq)
 
@@ -57,6 +58,10 @@ instance IsString TVar where
 
 newtype Poly = P (Either (TVar, Poly) Mono) deriving (Eq)
 newtype Mono = M (Either (String, [Mono]) TVar) deriving (Eq)
+
+(-->) :: Mono -> Mono -> Mono
+a --> b = M (Left ("->", [a, b]))
+infixr 5 -->
 
 instance Show Mono where
   showsPrec d (M (Right a)) = showsPrec d a
@@ -115,13 +120,6 @@ instance Show Context where
 instance Free Context where
   free (C xs) = xs >>= free . snd
 
-turna :: (Type a) => TVar -> a -> Poly
-turna v t = P (Left (v, toPoly t))
-
-(-->) :: Mono -> Mono -> Mono
-a --> b = M (Left ("->", [a, b]))
-infixr 5 -->
-
 newtype Typing = T (Context, Expr, Poly) deriving (Eq)
 
 instance Show Typing where
@@ -132,21 +130,37 @@ instance Show Typing where
     showString " : " .
     shows t
 
-example :: [(TVar, Poly)] -> Expr -> Poly -> Typing
-example c e p = T (C c, e, p)
+class Monad m => MonadTally m where
+  tally :: m TVar
+
+turna :: (Type a, MonadTally m) => (Mono -> m a) -> m Poly
+turna t = do
+  v <- tally
+  p <- liftM toPoly $ t $ M $ Right v
+  return $ P (Left (v, p))
+
+example :: MonadTally m => [(TVar, m Poly)] -> Expr -> m Poly -> m Typing
+example c e p = do
+  cxt <- mapM eval c
+  ty <- p
+  return $ T (C cxt, e, ty)
+  where
+  eval (v, m) = liftM ((,) v) m
+
+ex1, ex2, ex3 :: MonadTally m => m Typing
 
 ex1 = example
   []
   (be "bar" ("x" $> be "foo" ("y" $> "x") "foo") "bar")
-  (turna "a" $ turna "b" $ "a" --> ("b" --> "a"))
+  (turna $ \a -> turna $ \b -> return $ a --> (b --> a))
 
 ex2 = example
-  [("id", turna "a" $ "a" --> "a"), ("n", "int")]
+  [("id", turna $ \a -> return $ a --> a), ("n", return "int")]
   ("id" $$ "n")
-  "int"
+  (return "int")
 
 ex3 = example
-  [("id", turna "a" $ "a" --> "a"), ("n", "int")]
+  [("id", turna $ \a -> return $ a --> a), ("n", return "int")]
   "id"
-  (turna "a" $ "a" --> "a")
+  (turna $ \a -> return $ a --> a)
 

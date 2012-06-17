@@ -1,35 +1,16 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 
 import Data.String
-import qualified Data.Map as M
 import Data.Monoid
-import Control.Monad
+import Control.Monad.State
 import Type
 import Expr
-
-class Free a where
-  free :: a -> [TVar]
-
-instance Free Mono where
-  free (M (Right a)) = [a]
-  free (M (Left (_, ts))) = ts >>= free
-
-instance Free Poly where
-  free (P (Left (a, p))) = filter (/= a) (free p)
-  free (P (Right m)) = free m
+import Context
 
 isSpecialThan :: Poly -> Poly -> Bool
 P (Right _) `isSpecialThan` _ = True
 _ `isSpecialThan` P (Right _) = False
 P (Left (_,a)) `isSpecialThan`  P (Left (_,b)) = a `isSpecialThan`  b
-
-newtype Context = C [(TVar, Poly)] deriving (Eq)
-
-instance Show Context where
-  show (C xs) = show [V $ show v ++ " : " ++ show t | (v, t) <- xs]
-
-instance Free Context where
-  free (C xs) = xs >>= free . snd
 
 newtype Typing = T (Context, Expr, Poly) deriving (Eq)
 
@@ -52,9 +33,9 @@ turna t = do
 
 example :: MonadTally m => [(TVar, m Poly)] -> Expr -> m Poly -> m Typing
 example c e p = do
-  cxt <- mapM eval c
+  cxt <- liftM makeContext $ mapM eval c
   ty <- p
-  return $ T (C cxt, e, ty)
+  return $ T (cxt, e, ty)
   where
   eval (v, m) = liftM ((,) v) m
 
@@ -75,3 +56,19 @@ ex3 = example
   "id"
   (turna $ \a -> return $ a --> a)
 
+newtype InferM a = InferM
+  { runInferM :: State (Int, Context) a
+  } deriving (Functor, Monad)
+
+instance MonadTally InferM where
+  tally = InferM $ do
+    n <- gets fst
+    modify $ \(a, b) -> (succ a, b)
+    let name = '\'' : toEnum (fromEnum 'a' + n) : ""
+    return $ TV name
+
+runInferC :: Context -> InferM a -> a
+runInferC c = flip evalState (0, c) . runInferM
+
+runInfer :: InferM a -> a
+runInfer = runInferC $ makeContext []

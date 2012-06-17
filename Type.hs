@@ -3,7 +3,7 @@ module Type where
 import Data.String
 import Data.Monoid
 
-newtype TVar = TV String deriving (Eq)
+newtype TVar = TV String deriving (Eq, Ord)
 
 instance Show TVar where
   show (TV x) = x
@@ -51,3 +51,13 @@ instance IsString Mono where
 instance IsString Poly where
   fromString = P . Right . fromString
 
+class Free a where
+  free :: a -> [TVar]
+
+instance Free Mono where
+  free (M (Right a)) = [a]
+  free (M (Left (_, ts))) = ts >>= free
+
+instance Free Poly where
+  free (P (Left (a, p))) = filter (/= a) (free p)
+  free (P (Right m)) = free m

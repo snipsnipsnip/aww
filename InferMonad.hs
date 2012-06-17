@@ -14,6 +14,7 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Error
 import Types
+import Data.IntMap
 
 type Env = [(Var, Type)]
 type Constraint = (VarT, Type)

@@ -145,18 +145,26 @@ class InferTest < Test::Unit::TestCase
       end
     end
     
-    context "generic" do
+    context "rank 0" do
       setup do
         default_env[:cons] = [-1, [:list, :list]]
+        default_env[:car] = [:list, -1]
+        default_env[:cdr] = [:list, :list]
         default_env[:i] = [-1, -1]
         default_env[:s] = [[-1, [-2, -3]], [[-1, -2], [-1, -3]]]
         default_env[:k] = [-1, [-2, -1]]
+        default_env[:kons] = [-1, [-2, [[-1, [-2, -3]], -3]]]
+        default_env[:fix] = [[-1, -1], -1]
+        default_env[:ifelse] = [:bool, [-1, [-1, -1]]]
       end
       
       should "adapt" do
         assert_equal [:list, :list], infer([:cons, 1])
         assert_equal [:list, :list], infer([:cons, :nil])
         assert_equal [:list, :list], infer([:cons, :cons])
+      end
+      
+      should "combinators" do
         assert_equal [:a, [:b, :a]], infer([:i, :k])
         assert_equal [:a, [:b, :b]], infer([:k, :i])
         assert_equal [:a, :a], infer([:i, :i])
@@ -164,6 +172,38 @@ class InferTest < Test::Unit::TestCase
         assert_equal [:a, :a], infer([:s, :k, :k])
         assert_equal [[[:a, :b], :a], [[:a, :b], :b]], infer([:s, :i])
         assert_equal [[[:a, [:b, :c]], [:a, :b]], [[:a, [:b, :c]], [:a, :c]]], infer([:s, :s])
+      end
+      
+      should "mono" do
+        assert_raises(Infer::TypeMismatchError) do
+          infer [[:^, :f, [:kons, [:f, 3], [:f, [:null, :nil]]]], :kons]
+        end
+      end
+      
+      should "map" do
+        assert_equal [[:a, :b], [:list, :list]],
+          infer([:fix,
+            [:^, :rec,
+              [:^, :f,
+                [:^, :xs,
+                  [:ifelse, [:null, :xs],
+                    :xs,
+                    [:cons, [:f, [:car, :xs]],
+                            [:rec, :f, [:cdr, :xs]]]]]]]])
+      end
+      
+      should "filter" do
+        assert_equal [[:a, :bool], [:list, :list]],
+          infer([:fix,
+            [:^, :rec,
+              [:^, :pred,
+                [:^, :xs,
+                  [:ifelse, [:null, :xs],
+                    :xs,
+                    [:ifelse, [:pred, [:car, :xs]],
+                      [:cons, [:car, :xs],
+                              [:rec, :pred, [:cdr, :xs]]],
+                      [:rec, :pred, [:cdr, :xs]]]]]]]])
       end
     end
   end

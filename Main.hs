@@ -79,26 +79,4 @@ assuming :: TVar -> Poly -> InferM a -> InferM a
 assuming v t m = InferM $ do
   withState (\(n, c) -> (n, addContext v t c)) (runInferM m)
 
-unify _ a = return a
-
--- var
-check t (E (Left var)) = do
-  cxt <- gets snd
-  maybe (fail msg) (unify t) $ findContext var cxt
-  where
-  msg = "context not found for " ++ show var
-
--- abs
-check t (E (Right (Left var, e))) = do
-  a <- genType
-  r <- genType
-  unify t (a --> r)
-  assuming var a $ check r e
-
-{-
--- let
-check (E (Right (Right (E (Right (Left var, g))), e))) =
-
--- app
-check (E (Right (Right f, e))) =
--}
+unify :: 

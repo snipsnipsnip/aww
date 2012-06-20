@@ -20,9 +20,9 @@ class Infer
     rewrite(type) {|type| dict[type] ||= (dict.size + 10).to_s(36).to_sym }
   end
   
-  def rewrite(type, dict={}, &blk)
+  def rewrite(type, &blk)
     if type.is_a?(Array)
-      type.map {|t| rewrite(t, dict, &blk) }
+      type.map {|t| rewrite(t, &blk) }
     elsif type.is_a?(Symbol)
       type
     elsif type.is_a?(Fixnum)

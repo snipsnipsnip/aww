@@ -6,7 +6,7 @@ class InferTest < Test::Unit::TestCase
   def default_env
     @default_env ||= {
       :cons => [:num, [:list, :list]],
-      :car => [:list, :list],
+      :car => [:list, :num],
       :cdr => [:list, :list],
       :null => [:list, :bool],
       :nil => :list
@@ -40,7 +40,7 @@ class InferTest < Test::Unit::TestCase
     
     context "app" do
       should "be typed from result" do
-        assert_equal :list, infer([:car, :nil])
+        assert_equal :num, infer([:car, :nil])
         assert_equal :list, infer([:cdr, :nil])
         assert_equal :bool, infer([:null, :nil])
         assert_equal [:list, :list], infer([:cons, 1])
@@ -104,7 +104,7 @@ class InferTest < Test::Unit::TestCase
       should "induct" do
         assert_equal [:list, :bool], infer([:^, :x, [:null, :x]])
         assert_equal :bool, infer([[:^, :x, [:null, :x]], :nil])
-        assert_equal [:list, :list], infer([:^, :x, [:car, :x]])
+        assert_equal [:list, :num], infer([:^, :x, [:car, :x]])
         assert_equal [:list, :list], infer([:^, :x, [:cdr, :x]])
         assert_equal [:num, [:list, :list]], infer([:^, :x, [:cons, :x]])
         assert_equal [:num, [:list, :list]], infer([:^, :x, [:^, :y, [:cons, :x, :y]]])
@@ -115,7 +115,7 @@ class InferTest < Test::Unit::TestCase
       
       should "deduct" do
         assert_equal [[:num, :a], :a], infer([:^, :x, [:x, 3]])
-        assert_equal [[[:list, :list], :a], :a], infer([:^, :x, [:x, :car]])
+        assert_equal [[[:list, :num], :a], :a], infer([:^, :x, [:x, :car]])
         assert_equal [[:num, [:num, :a]], :a], infer([:^, :x, [:x, 3, 4]])
         assert_equal [[:num, [:list, :a]], :a], infer([:^, :x, [:x, 3, :nil]])
         assert_equal [[:list, [:num, :a]], :a], infer([:^, :x, [:x, :nil, 3]])

@@ -145,23 +145,13 @@ class InferTest < Test::Unit::TestCase
       end
     end
     
-    context "rank 0" do
+    context "combinators" do
       setup do
-        default_env[:cons] = [-1, [:list, :list]]
-        default_env[:car] = [:list, -1]
-        default_env[:cdr] = [:list, :list]
         default_env[:i] = [-1, -1]
         default_env[:s] = [[-1, [-2, -3]], [[-1, -2], [-1, -3]]]
         default_env[:k] = [-1, [-2, -1]]
         default_env[:kons] = [-1, [-2, [[-1, [-2, -3]], -3]]]
         default_env[:fix] = [[-1, -1], -1]
-        default_env[:ifelse] = [:bool, [-1, [-1, -1]]]
-      end
-      
-      should "adapt" do
-        assert_equal [:list, :list], infer([:cons, 1])
-        assert_equal [:list, :list], infer([:cons, :nil])
-        assert_equal [:list, :list], infer([:cons, :cons])
       end
       
       should "combinators" do
@@ -179,27 +169,47 @@ class InferTest < Test::Unit::TestCase
           infer [[:^, :f, [:kons, [:f, 3], [:f, [:null, :nil]]]], :kons]
         end
       end
+    end
+    
+    context "poly" do
+      setup do
+        default_env.clear
+        default_env[:cons] = [-1, [[:list, :of, -1], [:list, :of, -1]]]
+        default_env[:car] = [[:list, :of, -1], -1]
+        default_env[:cdr] = [[:list, :of, -1], [:list, :of, -1]]
+        default_env[:null] = [[:list, :of, -1], :bool]
+        default_env[:nil] = [:list, :of, -1]
+        default_env[:fix] = [[-1, -1], -1]
+        default_env[:ifelse] = [:bool, [-1, [-1, -1]]]
+      end
+      
+      should "adapt" do
+        assert_equal [[:list, :of, :num], [:list, :of, :num]], infer([:cons, 1])
+        assert_equal [[:list, :of, [:list, :of, :a]], [:list, :of, [:list, :of, :a]]], infer([:cons, :nil])
+        assert_equal [[:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]], [:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]]], infer([:cons, :cons])
+      end
       
       should "map" do
-        assert_equal [[:a, :b], [:list, :list]],
+        break
+        assert_equal [[:a, :b], [[:list, :of, :a], [:list, :of, :b]]],
           infer([:fix,
             [:^, :rec,
               [:^, :f,
                 [:^, :xs,
                   [:ifelse, [:null, :xs],
-                    :xs,
+                    :nil,
                     [:cons, [:f, [:car, :xs]],
                             [:rec, :f, [:cdr, :xs]]]]]]]])
       end
       
       should "filter" do
-        assert_equal [[:a, :bool], [:list, :list]],
+        assert_equal [[:a, :bool], [[:list, :of, :a], [:list, :of, :a]]],
           infer([:fix,
             [:^, :rec,
               [:^, :pred,
                 [:^, :xs,
                   [:ifelse, [:null, :xs],
-                    :xs,
+                    :nil,
                     [:ifelse, [:pred, [:car, :xs]],
                       [:cons, [:car, :xs],
                               [:rec, :pred, [:cdr, :xs]]],

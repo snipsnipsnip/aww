@@ -87,12 +87,15 @@ describe Infer do
       ])
     end
     
-    it "hmm" do
+    it "should handle some complex expressions" do
       assert_equal :num, infer([[:^, :x, :x], 3])
       assert_equal [:a, :a], infer([[:^, :x, :x], [:^, :x, :x]])
       assert_equal [:num, [:list, :list]], infer([[:^, :x, :x], :cons])
       assert_equal :list, infer([[:^, :x, :x], :cons, 10, :nil])
       assert_equal [:a, :a], infer([[:^, :x, :x], [:^, :x, :x], [:^, :x, :x]])
+      assert_equal [:a, [:b, [[:b, :c], [:d, :c]]]], infer([:^, :a, [:^, :b, [[:^, :c, [:^, :d, [:^, :e, [:d, :b]]]], [:^, :f, [:^, :g, :f]]]]])
+      assert_equal [:a, [:b, [:c, :b]]], infer([:^, :a, [[:^, :b, [:^, :c, [:^, :d, :c]]], :a]])
+      assert_equal [:a, [[:b, :c], [[[:d, [:e, [[[:b, :c], [:c, :f]], :f]]], :g], [:b, :g]]]], infer([:^, :a, [:^, :b, [:^, :c, [:^, :d, [:c, [:^, :e, [:^, :f, [:^, :g, [[:g, :b], [:b, :d]]]]]]]]]])
     end
     
     it "should induct" do
@@ -113,10 +116,6 @@ describe Infer do
       assert_equal [[:num, [:num, :a]], :a], infer([:^, :x, [:x, 3, 4]])
       assert_equal [[:num, [:list, :a]], :a], infer([:^, :x, [:x, 3, :nil]])
       assert_equal [[:list, [:num, :a]], :a], infer([:^, :x, [:x, :nil, 3]])
-    end
-    
-    it "foo" do
-      assert_equal [:a, [:b, [:c, :b]]], infer([:^, :a, [[:^, :b, [:^, :c, [:^, :d, :c]]], :a]])
     end
     
     it "should detect mismatch" do

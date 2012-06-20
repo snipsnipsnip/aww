@@ -10,18 +10,23 @@ class Infer
   end
   
   def infer(expr, env)
-    rewrite resolve(check(expr, env))
+    make_typevar_readable resolve(check(expr, env))
   end
   
   private
   
-  def rewrite(type, dict={})
+  def make_typevar_readable(type)
+    dict = {}
+    rewrite(type) {|type| dict[type] ||= (dict.size + 10).to_s(36).to_sym }
+  end
+  
+  def rewrite(type, dict={}, &blk)
     if type.is_a?(Array)
-      type.map {|t| rewrite(t, dict) }
+      type.map {|t| rewrite(t, dict, &blk) }
     elsif type.is_a?(Symbol)
       type
     elsif type.is_a?(Fixnum)
-      dict[type] ||= (dict.size + 10).to_s(36).to_sym
+      yield(type)
     else
       raise "unexpected type: #{type.inspect}"
     end
@@ -79,11 +84,17 @@ class Infer
     end
   end
   
+  def refresh_typevars(t)
+    dict = []
+    rewrite(t) {|type| type >= 0 ? type : (dict[-type] ||= newtype) }
+  end
+  
   def check(expr, env)
     warn "check: #{expr.inspect} => ?" if @verbose
     r = case expr
     when Symbol
-      env[expr] or raise "type not found for #{expr}"
+      t = env[expr] or raise "type not found for #{expr}"
+      refresh_typevars(t)
     when Array
       case expr[0]
       when :^

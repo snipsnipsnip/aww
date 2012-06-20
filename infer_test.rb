@@ -14,7 +14,7 @@ class InferTest < Test::Unit::TestCase
   end
   
   def infer(expr, env=default_env)
-    Infer.new(@verbose).infer(expr, env)
+    Infer.new(@verbose ||= false).infer(expr, env)
   end
   
   def report
@@ -22,7 +22,7 @@ class InferTest < Test::Unit::TestCase
     yield
     @verbose = false    
   end
-    
+
   context "mono" do
     context "vars" do
       should "be typed as in context" do
@@ -72,6 +72,7 @@ class InferTest < Test::Unit::TestCase
         assert_equal [:a, :num], infer([:^, :x, 1])
         default_env.each do |k,v|
           assert_equal [:a, v], infer([:^, :x, k])
+          assert_equal [:a, [:b, v]], infer([:^, :x, [:^, :y, k]])
         end
       end
       
@@ -141,6 +142,28 @@ class InferTest < Test::Unit::TestCase
         assert_raises(Infer::LoopError) do
           infer [:^, :a, [[[:^, :b, [:^, :c, :a]], :a], [[:a, [[[:^, :d, :d], [:a, :a]], [:^, :e, [:^, :f, :f]]]], [:^, :g, :g]]]]
         end
+      end
+    end
+    
+    context "generic" do
+      setup do
+        default_env[:cons] = [-1, [:list, :list]]
+        default_env[:i] = [-1, -1]
+        default_env[:s] = [[-1, [-2, -3]], [[-1, -2], [-1, -3]]]
+        default_env[:k] = [-1, [-2, -1]]
+      end
+      
+      should "adapt" do
+        assert_equal [:list, :list], infer([:cons, 1])
+        assert_equal [:list, :list], infer([:cons, :nil])
+        assert_equal [:list, :list], infer([:cons, :cons])
+        assert_equal [:a, [:b, :a]], infer([:i, :k])
+        assert_equal [:a, [:b, :b]], infer([:k, :i])
+        assert_equal [:a, :a], infer([:i, :i])
+        assert_equal [:a, :a], infer([:i, :i, :i])
+        assert_equal [:a, :a], infer([:s, :k, :k])
+        assert_equal [[[:a, :b], :a], [[:a, :b], :b]], infer([:s, :i])
+        assert_equal [[[:a, [:b, :c]], [:a, :b]], [[:a, [:b, :c]], [:a, :c]]], infer([:s, :s])
       end
     end
   end

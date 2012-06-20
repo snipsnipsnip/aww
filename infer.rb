@@ -33,7 +33,7 @@ class Infer
     if prev && prev.include?(n)
       if ignore_loop && prev[-1] != n
         warn "ignoring loop (#{prev.join ' -> '} -> #{n}), tying knots" if @verbose
-        return n
+        return @cxt[n] = n
       else 
         raise LoopError, "loop detected! (#{prev.join ' -> '} -> #{n})"
       end
@@ -203,6 +203,12 @@ describe "infer" do
       assert_equal [:a, [:b, :b]], infer([:^, :x, [:^, :y, :y]])
       assert_equal [:a, [:b, :num]], infer([:^, :x, [:^, :y, 3]])
       assert_equal [[:a, [:b, :c]], [[:a, :b], [:a, :c]]], infer([:^, :x, [:^, :y, [:^, :z, [[:x, :z], [:y, :z]]]]])
+      
+      assert_equal [:a, :a], infer([
+        [:^, :x, [:^, :y, [:^, :z, [[:x, :z], [:y, :z]]]]],
+        [:^, :x, [:^, :y, :x]],
+        [:^, :x, [:^, :y, :x]]
+      ])
     end
     
     it "hmm" do
@@ -215,6 +221,7 @@ describe "infer" do
     
     it "should induct" do
       assert_equal [:list, :bool], infer([:^, :x, [:null, :x]])
+      assert_equal :bool, infer([[:^, :x, [:null, :x]], :nil])
       assert_equal [:list, :list], infer([:^, :x, [:car, :x]])
       assert_equal [:list, :list], infer([:^, :x, [:cdr, :x]])
       assert_equal [:num, [:list, :list]], infer([:^, :x, [:cons, :x]])

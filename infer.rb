@@ -32,30 +32,30 @@ class Infer
     end
   end
   
-  def resolve(n, prev=nil)
-    warn "resolve: #{n.inspect} => ?" if @verbose
+  def resolve(n, *prev)
+    log "resolve: #{n.inspect} => ?" if @verbose
     
-    if prev && prev.include?(n)
+    if prev.include?(n)
       raise LoopError, "loop detected! (#{prev.join ' -> '} -> #{n})"
     end
     
     r = case n
     when Fixnum
       if (d = @cxt[n]) && n != d
-        resolve(d, (prev ||= []).push(n))
+        resolve(d, n, *prev)
       else
         n
       end
     when Array
-      n.map {|x| resolve(x, prev) }
+      n.map {|x| resolve(x, *prev) }
     when Symbol
       n
     when nil
-      raise "definition not found (#{prev && prev.join(' -> ')})"
+      raise "definition not found (#{prev.join(' -> ')})"
     else
-      raise "unexpected query: #{n.inspect} (#{prev && prev.join(' -> ')})"
+      raise "unexpected query: #{n.inspect} (#{prev.join(' -> ')})"
     end
-    warn "resolve: #{n.inspect} => #{r.inspect}" if @verbose
+    log "resolve: #{n.inspect} => #{r.inspect}" if @verbose
     r
   end
   
@@ -64,7 +64,7 @@ class Infer
   end
   
   def unify(a, b)
-    warn "unify: #{a.inspect} = #{b.inspect}" if @verbose
+    log "unify: #{a.inspect} = #{b.inspect}" if @verbose
     
     a = resolve(a)
     b = resolve(b)
@@ -90,7 +90,7 @@ class Infer
   end
   
   def check(expr, env)
-    warn "check: #{expr.inspect} => ?" if @verbose
+    log "check: #{expr.inspect} => ?" if @verbose
     r = case expr
     when Symbol
       t = env[expr] or raise "type not found for #{expr}"
@@ -120,8 +120,12 @@ class Infer
     when Numeric
       :num
     end
-    warn "check: #{expr.inspect} => #{r.inspect}" if @verbose
+    log "check: #{expr.inspect} => #{r.inspect}" if @verbose
     r
+  end
+  
+  def log(msg)
+    warn "#{' ' * (caller.size - 20)}#{msg}"
   end
   
   class TypeMismatchError < RuntimeError

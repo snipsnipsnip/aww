@@ -166,3 +166,9 @@ def prettye(e)
     end
   end
 end
+
+if $0 == __FILE__
+  ARGV.each do |a|
+    p Infer.new(true).infer(eval(a), {})
+  end
+end

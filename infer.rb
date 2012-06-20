@@ -71,9 +71,13 @@ class Infer
     
     if a.is_a?(Array) && b.is_a?(Array) && a.size == b.size
       a.zip(b) {|x, y| unify(x, y) }
+    elsif a.is_a?(Fixnum) && b.is_a?(Fixnum)
+      raise "unexpected entry" if @cxt.key?(a) || @cxt.key?(b)
+      @cxt[a] = @cxt[b] = newtype
     elsif a.is_a?(Fixnum) || b.is_a?(Fixnum)
-      @cxt[a] ||= b if a.is_a?(Fixnum)
-      @cxt[b] ||= a if b.is_a?(Fixnum)
+      a, b = b, a if b.is_a?(Fixnum)
+      raise "unexpected entry" if @cxt.key?(a)
+      @cxt[a] = b if a.is_a?(Fixnum)
     elsif a != b
       raise TypeMismatchError, "type mismatch: #{a.inspect} != #{b.inspect}"
     end

@@ -27,27 +27,22 @@ class Infer
     end
   end
   
-  def resolve(n, ignore_loop=false, prev=nil)
+  def resolve(n, prev=nil)
     warn "resolve: #{n.inspect} => ?" if @verbose
     
     if prev && prev.include?(n)
-      if ignore_loop && prev[-1] != n
-        warn "ignoring loop (#{prev.join ' -> '} -> #{n}), tying knots" if @verbose
-        return @cxt[n] = n
-      else 
-        raise LoopError, "loop detected! (#{prev.join ' -> '} -> #{n})"
-      end
+      raise LoopError, "loop detected! (#{prev.join ' -> '} -> #{n})"
     end
     
     r = case n
     when Fixnum
       if (d = @cxt[n]) && n != d
-        resolve(d, ignore_loop, (prev ||= []).push(n))
+        resolve(d, (prev ||= []).push(n))
       else
         n
       end
     when Array
-      n.map {|x| resolve(x, ignore_loop, prev) }
+      n.map {|x| resolve(x, prev) }
     when Symbol
       n
     when nil
@@ -66,13 +61,14 @@ class Infer
   def unify(a, b)
     warn "unify: #{a.inspect} = #{b.inspect}" if @verbose
     
-    a = resolve(a, true)
-    b = resolve(b, true)
+    a = resolve(a)
+    b = resolve(b)
     
     if a.is_a?(Array) && b.is_a?(Array) && a.size == b.size
       a.zip(b) {|x, y| unify(x, y) }
     elsif a.is_a?(Fixnum) && b.is_a?(Fixnum)
       raise "unexpected entry" if @cxt.key?(a) || @cxt.key?(b)
+      # as both are tip (local minimum), ensured by resolve, we can just join the set
       @cxt[a] = @cxt[b] = newtype
     elsif a.is_a?(Fixnum) || b.is_a?(Fixnum)
       a, b = b, a if b.is_a?(Fixnum)

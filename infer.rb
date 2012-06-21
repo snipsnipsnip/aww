@@ -33,7 +33,7 @@ class Infer
   end
   
   def resolve(n, *prev)
-    log "resolve: #{n.inspect} => ?" if @verbose
+    log "#{n.inspect} => ?" if @verbose
     
     if prev.include?(n)
       raise LoopError, "loop detected! (#{prev.join ' -> '} -> #{n})"
@@ -55,7 +55,7 @@ class Infer
     else
       raise "unexpected query: #{n.inspect} (#{prev.join(' -> ')})"
     end
-    log "resolve: #{n.inspect} => #{r.inspect}" if @verbose
+    log "#{n.inspect} => #{r.inspect}" if @verbose
     r
   end
   
@@ -64,7 +64,7 @@ class Infer
   end
   
   def unify(a, b)
-    log "unify: #{a.inspect} = #{b.inspect}" if @verbose
+    log "#{a.inspect} = #{b.inspect}" if @verbose
     
     a = resolve(a)
     b = resolve(b)
@@ -90,7 +90,7 @@ class Infer
   end
   
   def check(expr, env)
-    log "check: #{expr.inspect} => ?" if @verbose
+    log "#{expr.inspect} => ?" if @verbose
     r = case expr
     when Symbol
       t = env[expr] or raise "type not found for #{expr}"
@@ -120,12 +120,15 @@ class Infer
     when Numeric
       :num
     end
-    log "check: #{expr.inspect} => #{r.inspect}" if @verbose
+    log "#{expr.inspect} => #{r.inspect}" if @verbose
     r
   end
   
   def log(msg)
-    warn "#{' ' * (caller.size - 20)}#{msg}"
+    c = caller
+    func = c[0][c[0].index('`').succ..-2]
+    indent = c.size - (@initial ||= c.size)
+    warn "#{' ' * indent}#{func}: #{msg}"
   end
   
   class TypeMismatchError < RuntimeError

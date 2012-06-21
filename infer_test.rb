@@ -150,11 +150,20 @@ class InferTest < Test::Unit::TestCase
         default_env[:i] = [-1, -1]
         default_env[:s] = [[-1, [-2, -3]], [[-1, -2], [-1, -3]]]
         default_env[:k] = [-1, [-2, -1]]
+        default_env[:c] = [[-1, [-2, -3]], [-2, [-1, -3]]]
         default_env[:kons] = [-1, [-2, [[-1, [-2, -3]], -3]]]
         default_env[:fix] = [[-1, -1], -1]
       end
       
-      should "combinators" do
+      should "fix" do
+        assert_equal [:a, :a], infer(:i)
+        assert_equal [[:a, [:b, :c]], [[:a, :b], [:a, :c]]], infer(:s)
+        assert_equal [:a, [:b, :a]], infer(:k)
+        assert_equal [[:a, [:b, :c]], [:b, [:a, :c]]], infer(:c)
+      end
+      
+      should "combinations" do
+        assert_equal [:a, [:b, :b]], infer([:k, :i])
         assert_equal [:a, [:b, :a]], infer([:i, :k])
         assert_equal [:a, [:b, :b]], infer([:k, :i])
         assert_equal [:a, :a], infer([:i, :i])
@@ -187,10 +196,20 @@ class InferTest < Test::Unit::TestCase
         assert_equal [[:list, :of, :num], [:list, :of, :num]], infer([:cons, 1])
         assert_equal [[:list, :of, [:list, :of, :a]], [:list, :of, [:list, :of, :a]]], infer([:cons, :nil])
         assert_equal [[:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]], [:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]]], infer([:cons, :cons])
+        assert_equal [:list, :of, :num], infer([:fix, [:cons, 1]])
+        assert_equal [:list, :of, :bool], infer([:fix, [:cons, [:null, :nil]]])
+      end
+      
+      should "match" do
+        assert_raises(Infer::TypeMismatchError) do
+          infer [:cons, 1, [:cons, [:null, :nil], :nil]]
+        end
+        assert_raises(Infer::TypeMismatchError) { infer [:car, :ifelse] }
+        assert_raises(Infer::TypeMismatchError) { infer [:ifelse, 1] }
+        assert_raises(Infer::TypeMismatchError) { infer [:null, :fix] }
       end
       
       should "map" do
-        break
         assert_equal [[:a, :b], [[:list, :of, :a], [:list, :of, :b]]],
           infer([:fix,
             [:^, :rec,
@@ -198,6 +217,16 @@ class InferTest < Test::Unit::TestCase
                 [:^, :xs,
                   [:ifelse, [:null, :xs],
                     :nil,
+                    [:cons, [:f, [:car, :xs]],
+                            [:rec, :f, [:cdr, :xs]]]]]]]])
+
+        assert_equal [[:a, :a], [[:list, :of, :a], [:list, :of, :a]]],
+          infer([:fix,
+            [:^, :rec,
+              [:^, :f,
+                [:^, :xs,
+                  [:ifelse, [:null, :xs],
+                    :xs,
                     [:cons, [:f, [:car, :xs]],
                             [:rec, :f, [:cdr, :xs]]]]]]]])
       end
@@ -214,6 +243,48 @@ class InferTest < Test::Unit::TestCase
                       [:cons, [:car, :xs],
                               [:rec, :pred, [:cdr, :xs]]],
                       [:rec, :pred, [:cdr, :xs]]]]]]]])
+      end
+      
+      should "foldl" do
+        assert_equal [[:a, [:b, :a]], [:a, [[:list, :of, :b], :a]]],
+          infer([:fix,
+            [:^, :rec,
+              [:^, :f,
+                [:^, :z,
+                  [:^, :xs,
+                    [:ifelse, [:null, :xs],
+                      :z,
+                      [:rec, :f, [:f, :z, [:car, :xs]],
+                                 [:cdr, :xs]]]]]]]])
+      end
+      
+      should "foldr" do
+        assert_equal [[:a, [:b, :b]], [:b, [[:list, :of, :a], :b]]],
+          infer([:fix,
+            [:^, :rec,
+              [:^, :f,
+                [:^, :z,
+                  [:^, :xs,
+                    [:ifelse, [:null, :xs],
+                      :z,
+                      [:f, [:car, :xs],
+                           [:rec, :f, :z, [:cdr, :xs]]]]]]]]])
+      end
+      
+      should "append" do
+        assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
+          infer([:fix,
+            [:^, :rec,
+              [:^, :xs,
+                [:^, :ys,
+                  [:ifelse, [:null, :xs],
+                    :ys,
+                    [:cons, [:car, :xs],
+                            [:rec, [:cdr, :xs], :ys]]]]]]])
+        
+        e = default_env.merge({ :foldr => [[-1, [-2, -2]], [-2, [[:list, :of, -1], -2]]] })
+        assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
+          infer([:foldr, :cons], e)
       end
     end
   end

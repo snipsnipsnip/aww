@@ -155,7 +155,8 @@ class ExpGen
     when 0
       [gen(depth - 1, *vars), gen(depth - 1, *vars)]
     when 1
-      [:^, v=var, gen(depth - 1, v, *vars)]
+      v = var
+      [:^, v, gen(depth - 1, v, *vars)]
     else
       vars[rand(vars.size)]
     end

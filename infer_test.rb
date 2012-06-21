@@ -23,7 +23,7 @@ class InferTest < Test::Unit::TestCase
     @verbose = false    
   end
 
-  context "mono" do
+  context "concrete" do
     context "vars" do
       should "be typed as in context" do
         default_env.each do |k,v|
@@ -144,7 +144,9 @@ class InferTest < Test::Unit::TestCase
         end
       end
     end
-    
+  end
+  
+  context "mono" do
     context "combinators" do
       setup do
         default_env[:i] = [-1, -1]
@@ -285,6 +287,18 @@ class InferTest < Test::Unit::TestCase
         e = default_env.merge({ :foldr => [[-1, [-2, -2]], [-2, [[:list, :of, -1], -2]]] })
         assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
           infer([:foldr, :cons], e)
+      end
+    
+      context "alternative" do
+        setup do
+          default_env.clear
+          default_env[:append] = [[-1], [[-1], [-1]]]
+          default_env[:wrap] = [-1, [-1]]
+        end
+        
+        should "hoge" do
+          assert_equal [[[:a], [[:a], [:a]]]], infer([:wrap, :append])
+        end
       end
     end
   end

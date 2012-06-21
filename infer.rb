@@ -41,7 +41,7 @@ class Infer
     
     r = case n
     when Fixnum
-      if (d = @cxt[n]) && n != d
+      if d = @cxt[n]
         resolve(d, n, *prev)
       else
         n
@@ -131,10 +131,13 @@ class Infer
     warn "#{' ' * indent}#{func}: #{msg}"
   end
   
-  class TypeMismatchError < RuntimeError
+  class Error < RuntimeError
   end
   
-  class LoopError < RuntimeError
+  class TypeMismatchError < Error
+  end
+  
+  class LoopError < Error
   end
 end
 

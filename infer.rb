@@ -1,7 +1,6 @@
 
 class Infer
-  attr_reader :cxt
-  attr_writer :verbose
+  attr_accessor :verbose
 
   def initialize(verbose=false)
     @n = -1
@@ -10,10 +9,16 @@ class Infer
   end
   
   def infer(expr, env)
-    make_typevar_readable resolve(check(expr, env))
+    make_typevar_readable resolve(infer_raw(expr, env))
   end
   
   private
+  
+  def infer_raw(expr, env)
+    texpr = newtype
+    check(texpr, expr, env)
+    texpr
+  end
   
   def make_typevar_readable(type)
     dict = {}
@@ -84,17 +89,28 @@ class Infer
     end
   end
   
+  def unify_as_function(expected_type)
+    expected_type = resolve(expected_type)
+    if expected_type.is_a?(Array) && expected_type.size == 2
+      expected_type
+    else
+      pair = [newtype, newtype]
+      unify pair, expected_type
+      pair
+    end
+  end
+  
   def refresh_typevars(t)
     dict = []
     rewrite(t) {|type| type >= 0 ? type : (dict[- type - 1] ||= newtype) }
   end
   
-  def check(expr, env)
-    log "#{expr.inspect} => ?" if @verbose
-    r = case expr
+  def check(expected_type, expr, env)
+    log "#{expr.inspect} : #{expected_type.inspect}" if @verbose
+    case expr
     when Symbol
       t = env[expr] or raise RefError, "type not found for #{expr}"
-      refresh_typevars(t)
+      unify expected_type, refresh_typevars(t)
     when Array
       if expr.size < 2
         raise SyntaxError, "unexpected syntax: #{expr.inspect}"
@@ -102,23 +118,18 @@ class Infer
       
       case expr[0]
       when :^
-        check_abs(expr, env)
+        check_abs(expected_type, expr, env)
       when :let
-        check_let(expr, env)
+        check_let(expected_type, expr, env)
       else
-        if expr.size > 2
-          check([expr[0..-2], expr[-1]], env)
-        else
-          check_app(expr, env)
-        end
+        check_app(expected_type, expr, env)
       end
     when Numeric
-      :num
+      unify expected_type, :num
     when TrueClass, FalseClass
-      :bool
+      unify expected_type, :bool
     end
-    log "#{expr.inspect} => #{r.inspect}" if @verbose
-    r
+    log "#{expr.inspect} : #{resolve(expected_type).inspect}" if @verbose
   end
   
   def generalize(type, env)
@@ -136,37 +147,42 @@ class Infer
     r
   end
   
-  def check_let(expr, env)
+  def check_let(expected_type, expr, env)
     var, expr, body = expr[1..-1]
     local_env = env.dup
     tvar = newtype
     local_env[var] = tvar
-    local_env[var] = generalize(resolve(check(expr, local_env)), local_env)
-    check(body, local_env)
+    check(tvar, expr, local_env)
+    local_env[var] = generalize(resolve(tvar), local_env)
+    check(expected_type, body, local_env)
   end
   
-  def check_app(expr, env)
-    op, arg = expr
-    to = check(op, env)
-    ta = check(arg, env)
-    r = newtype
-    unify [ta, r], to
-    r
-  end
-  
-  def check_abs(expr, env)
-    args, body = expr[1..-1]
-    args = Array(args)
-
-    args.empty? and raise SyntaxError, "malformed lambda: #{expr.inspect}"
-
-    local_env = env.dup
-    types = args.map {|argname| local_env[argname] = newtype }
-    type = check(body, local_env)
-    types.reverse_each do |t|
-      type = [t, type]
+  def check_app(expected_type, expr, env)
+    top = newtype
+    if expr.size > 2
+      check_app(top, expr[0..-2], env)
+    else
+      check(top, expr[0], env)
     end
-    type
+    targ, tresult = unify_as_function(top)
+    check(targ, expr[-1], env)
+    unify(tresult, expected_type)
+  end
+  
+  def check_abs(expected_type, expr, env)
+    targ, tresult = unify_as_function(expected_type)
+    local_env = env.dup
+    
+    args, body = expr[1..-1]
+    single = args.is_a?(Symbol)
+    varg = single ? args : args[0]
+    local_env[varg] = targ
+    
+    if single || args.size == 1
+      check(tresult, expr[2], local_env)
+    else
+      check_abs(tresult, [:^, args[1..-1], body], local_env)
+    end
   end
   
   def log(msg)

@@ -28,7 +28,7 @@ class Infer
     elsif type.is_a?(Fixnum)
       yield(type)
     else
-      raise "unexpected type: #{type.inspect}"
+      raise Bug, "unexpected type: #{type.inspect}"
     end
   end
   
@@ -51,9 +51,9 @@ class Infer
     when Symbol
       n
     when nil
-      raise "definition not found (#{prev.join(' -> ')})"
+      raise Bug, "definition not found (#{prev.join(' -> ')})"
     else
-      raise "unexpected query: #{n.inspect} (#{prev.join(' -> ')})"
+      raise Bug, "unexpected query: #{n.inspect} (#{prev.join(' -> ')})"
     end
     log "#{n.inspect} => #{r.inspect}" if @verbose
     r
@@ -72,12 +72,12 @@ class Infer
     if a.is_a?(Array) && b.is_a?(Array) && a.size == b.size
       a.zip(b) {|x, y| unify(x, y) }
     elsif a.is_a?(Fixnum) && b.is_a?(Fixnum)
-      raise "unexpected entry" if @cxt.key?(a) || @cxt.key?(b)
+      raise Bug, "unexpected entry" if @cxt.key?(a) || @cxt.key?(b)
       # as both are tip (local minimum), ensured by resolve, we can just join the set
       @cxt[a] = @cxt[b] = newtype
     elsif a.is_a?(Fixnum) || b.is_a?(Fixnum)
       a, b = b, a if b.is_a?(Fixnum)
-      raise "unexpected entry" if @cxt.key?(a)
+      raise Bug, "unexpected entry" if @cxt.key?(a)
       @cxt[a] = b
     elsif a != b
       raise TypeMismatchError, "type mismatch: #{a.inspect} != #{b.inspect}"
@@ -93,21 +93,28 @@ class Infer
     log "#{expr.inspect} => ?" if @verbose
     r = case expr
     when Symbol
-      t = env[expr] or raise "type not found for #{expr}"
+      t = env[expr] or raise RefError, "type not found for #{expr}"
       refresh_typevars(t)
     when Array
       case expr[0]
       when :^
-        var, body = expr[1..-1]
-        tv = newtype
-        env2 = env.dup
-        env2[var] = tv
-        [tv, check(body, env2)]
+        args, body = expr[1..-1]
+        args = Array(args)
+        
+        args.empty? and raise SyntaxError, "malformed lambda: #{expr.inspect}"
+        
+        local_env = env.dup
+        types = args.map {|argname| local_env[argname] = newtype }
+        type = check(body, local_env)
+        types.reverse_each do |t|
+          type = [t, type]
+        end
+        type
       else
         if expr.size > 2
           check([expr[0..-2], expr[-1]], env)
         elsif expr.size < 2
-          raise "unexpected syntax: #{expr.inspect}"
+          raise SyntaxError, "unexpected syntax: #{expr.inspect}"
         else
           op, arg = expr
           to = check(op, env)
@@ -134,24 +141,43 @@ class Infer
   class Error < RuntimeError
   end
   
+  class Bug < Error
+  end
+  
   class TypeMismatchError < Error
   end
   
   class LoopError < Error
   end
+  
+  class RefError < Error
+  end
+  
+  class SyntaxError < Error
+  end
 end
 
 module ExprUtil
   module_function
-  def check(e)
-    return true unless e.is_a?(Array)
+  def check(expr)
+    stack = [expr]
     
-    if e.size < 2
-      raise "unexpected array size: #{e.inspect}"
-    elsif :^ == e[0]
-      e.size == 3 and e[1].is_a?(Symbol) and check(e) or raise "malformed lambda: #{e.inspect}"
-    else
-      e.each {|x| check e }
+    while e = stack.pop
+      next unless e.is_a?(Array)
+      
+      if e.size < 2
+        raise Infer::SyntaxError, "unexpected array size: #{e.inspect}"
+      elsif :^ == e[0]
+        e.size == 3 and
+        (e[1].is_a?(Symbol) or
+          (e[1].is_a?(Array) and
+          e[1].size > 1 and
+          e[1].all? {|x| x.is_a? Symbol })) or
+          raise Infer::SyntaxError, "malformed lambda: #{e.inspect}"
+        stack.push e[2]
+      else
+        stack.concat e
+      end
     end
   end
 

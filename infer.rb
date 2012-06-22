@@ -4,8 +4,8 @@ class Infer
   attr_writer :verbose
 
   def initialize(verbose=false)
-    @n = 0
-    @cxt = {}
+    @n = -1
+    @cxt = []
     @verbose = verbose
   end
   
@@ -72,12 +72,12 @@ class Infer
     if a.is_a?(Array) && b.is_a?(Array) && a.size == b.size
       a.zip(b) {|x, y| unify(x, y) }
     elsif a.is_a?(Fixnum) && b.is_a?(Fixnum)
-      raise Bug, "unexpected entry" if @cxt.key?(a) || @cxt.key?(b)
+      raise Bug, "unexpected entry" if @cxt[a] || @cxt[b]
       # as both are tip (local minimum), ensured by resolve, we can just join the set
       @cxt[a] = @cxt[b] = newtype
     elsif a.is_a?(Fixnum) || b.is_a?(Fixnum)
       a, b = b, a if b.is_a?(Fixnum)
-      raise Bug, "unexpected entry" if @cxt.key?(a)
+      raise Bug, "unexpected entry" if @cxt[a]
       @cxt[a] = b
     elsif a != b
       raise TypeMismatchError, "type mismatch: #{a.inspect} != #{b.inspect}"
@@ -86,7 +86,7 @@ class Infer
   
   def refresh_typevars(t)
     dict = []
-    rewrite(t) {|type| type >= 0 ? type : (dict[-type] ||= newtype) }
+    rewrite(t) {|type| type >= 0 ? type : (dict[- type - 1] ||= newtype) }
   end
   
   def check(expr, env)

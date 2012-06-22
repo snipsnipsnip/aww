@@ -123,6 +123,8 @@ class Infer
       end
     when Numeric
       :num
+    when TrueClass, FalseClass
+      :bool
     end
     log "#{expr.inspect} => #{r.inspect}" if @verbose
     r

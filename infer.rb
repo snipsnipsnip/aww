@@ -20,6 +20,15 @@ class Infer
     rewrite(type) {|type| dict[type] ||= (dict.size + 10).to_s(36).to_sym }
   end
   
+  def infer_generic(expr, env)
+    make_typevar_generic resolve(check(expr, env))
+  end
+
+  def make_typevar_generic(type)
+    dict = {}
+    rewrite(type) {|type| dict[type] ||= -(dict.size + 1) }
+  end
+  
   def rewrite(type, &blk)
     if type.is_a?(Array)
       type.map {|t| rewrite(t, &blk) }
@@ -100,13 +109,7 @@ class Infer
       when :^
         check_abs(expr, env)
       else
-        if expr.size > 2
-          check([expr[0..-2], expr[-1]], env)
-        elsif expr.size < 2
-          raise SyntaxError, "unexpected syntax: #{expr.inspect}"
-        else
-          check_app(expr, env)
-        end
+        check_app(expr, env)
       end
     when Numeric
       :num
@@ -116,12 +119,13 @@ class Infer
   end
   
   def check_app(expr, env)
-    op, arg = expr
-    to = check(op, env)
-    ta = check(arg, env)
-    r = newtype
-    unify [ta, r], to
-    r
+    raise SyntaxError, "unexpected syntax: #{expr.inspect}" if expr.size < 2
+    top, *targs = expr.map {|arg| check(arg, env) }
+    tresult = newtype
+    texpected = tresult
+    targs.reverse_each {|t| texpected = [t, texpected] }
+    unify texpected, top
+    tresult
   end
   
   def check_abs(expr, env)

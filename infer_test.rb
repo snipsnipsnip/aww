@@ -328,6 +328,21 @@ class InferTest < Test::Unit::TestCase
                 [:pair, [:g, true], [:g, 3]]]])
           end
         end
+        
+        should "rec" do
+          assert_equal :a, infer([:let, :x, :x, :x])
+          assert_equal [:list, :of, :num], infer([:let, :x, [:cons, 1, :x], :x])
+          assert_equal [:list, :of, [[:list, :of, :a], :a]], infer([:let, :x, [:cons, :car, [:cons, :car, :x]], :x])
+        
+          assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
+            infer([:let, :rec,
+              [:^, [:xs, :ys],
+                [:ifelse, [:null, :xs],
+                  :ys,
+                  [:cons, [:car, :xs],
+                          [:rec, [:cdr, :xs], :ys]]]],
+              :rec])
+        end
       end
     end
   end

@@ -321,6 +321,12 @@ class InferTest < Test::Unit::TestCase
             [:^, :x, 
               [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
                 [:pair, [:g, true], [:g, false]]]])
+          
+          assert_raises(Infer::TypeMismatchError) do
+            infer([:^, :x, 
+              [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
+                [:pair, [:g, true], [:g, 3]]]])
+          end
         end
       end
     end

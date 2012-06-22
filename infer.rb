@@ -89,15 +89,6 @@ class Infer
     rewrite(t) {|type| type >= 0 ? type : (dict[- type - 1] ||= newtype) }
   end
   
-  def infer_generic(expr, env)
-    make_typevar_generic resolve(check(expr, env))
-  end
-
-  def make_typevar_generic(type)
-    dict = {}
-    rewrite(type) {|type| dict[type] ||= -(dict.size + 1) }
-  end
-  
   def check(expr, env)
     log "#{expr.inspect} => ?" if @verbose
     r = case expr
@@ -130,12 +121,27 @@ class Infer
     r
   end
   
+  def generalize(type, env)
+    dict = {}
+    ftv = env.values
+    ftv.flatten!
+    ftv.map! {|x| resolve(x) if x.is_a?(Fixnum) && x >= 0 }
+    ftv.compact!
+    log "#{type.inspect} in #{ftv.inspect}" if @verbose
+    r = rewrite(type) do |t|
+      next t if ftv.include?(t)
+      dict[t] ||= -(dict.size + 1)
+    end
+    log "#{r.inspect}" if @verbose
+    r
+  end
+  
   def check_let(expr, env)
     var, expr, body = expr[1..-1]
     local_env = env.dup
     tvar = newtype
     local_env[var] = tvar
-    local_env[var] = infer_generic(expr, local_env)
+    local_env[var] = generalize(resolve(check(expr, local_env)), local_env)
     check(body, local_env)
   end
   

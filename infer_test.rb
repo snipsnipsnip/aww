@@ -291,6 +291,31 @@ class InferTest < Test::Unit::TestCase
           assert_equal [[[:a], [[:a], [:a]]]], infer([:wrap, :append])
         end
       end
+    
+      context "let" do
+        setup do
+          default_env[:pair] = [-1, [-2, [:pair, -1, -2]]]
+          default_env[:id] = [-1, -1]
+        end
+      
+        should "keep poly" do
+          assert_equal [:pair, :bool, :num], infer([:let, :f, :car,
+            [:pair, [:f, [:cons, [:null, :nil], :nil]],
+                    [:f, [:cons, 100, :nil]]]])
+          
+          assert_equal [:pair, :bool, :num], infer([:let, :f, [:id, :car],
+            [:pair, [:f, [:cons, [:null, :nil], :nil]],
+                    [:f, [:cons, 100, :nil]]]])
+
+          assert_equal [:pair, :bool, :num], infer([:let, :f, [:^, :x, [:car, :x]],
+            [:pair, [:f, [:cons, [:null, :nil], :nil]],
+                    [:f, [:cons, 100, :nil]]]])
+          
+          assert_equal [:pair, [:pair, :bool, :bool], [:pair, :num, :num]], infer([:let, :f, [:^, :x, [:pair, :x, :x]],
+            [:pair, [:f, [:null, :nil]],
+                    [:f, 100]]])
+        end
+      end
     end
   end
 end

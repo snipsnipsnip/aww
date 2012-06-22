@@ -89,6 +89,15 @@ class Infer
     rewrite(t) {|type| type >= 0 ? type : (dict[- type - 1] ||= newtype) }
   end
   
+  def infer_generic(expr, env)
+    make_typevar_generic resolve(check(expr, env))
+  end
+
+  def make_typevar_generic(type)
+    dict = {}
+    rewrite(type) {|type| dict[type] ||= -(dict.size + 1) }
+  end
+  
   def check(expr, env)
     log "#{expr.inspect} => ?" if @verbose
     r = case expr
@@ -96,14 +105,18 @@ class Infer
       t = env[expr] or raise RefError, "type not found for #{expr}"
       refresh_typevars(t)
     when Array
+      if expr.size < 2
+        raise SyntaxError, "unexpected syntax: #{expr.inspect}"
+      end
+      
       case expr[0]
       when :^
         check_abs(expr, env)
+      when :let
+        check_let(expr, env)
       else
         if expr.size > 2
           check([expr[0..-2], expr[-1]], env)
-        elsif expr.size < 2
-          raise SyntaxError, "unexpected syntax: #{expr.inspect}"
         else
           check_app(expr, env)
         end
@@ -113,6 +126,15 @@ class Infer
     end
     log "#{expr.inspect} => #{r.inspect}" if @verbose
     r
+  end
+  
+  def check_let(expr, env)
+    var, expr, body = expr[1..-1]
+    local_env = env.dup
+    tvar = newtype
+    local_env[var] = tvar
+    local_env[var] = infer_generic(expr, local_env)
+    check(body, local_env)
   end
   
   def check_app(expr, env)
@@ -183,6 +205,11 @@ module ExprUtil
           e[1].all? {|x| x.is_a? Symbol })) or
           raise Infer::SyntaxError, "malformed lambda: #{e.inspect}"
         stack.push e[2]
+      elsif :let == e[0]
+        e.size == 4 and
+        e[1].is_a?(Symbol) or
+          raise Infer::SyntaxError, "malformed let: #{e.inspect}"
+        stack << e[2] << e[3]
       else
         stack.concat e
       end

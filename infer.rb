@@ -133,12 +133,10 @@ class Infer
   end
   
   def generalize(type, env)
-    dict = {}
-    ftv = env.values
-    ftv.flatten!
-    ftv.map! {|x| resolve(x) if x.is_a?(Fixnum) && x >= 0 }
-    ftv.compact!
+    type = resolve(type)
+    ftv = collect_free_type_variables(env)
     log "#{type.inspect} in #{ftv.inspect}" if @verbose
+    dict = {}
     r = rewrite(type) do |t|
       next t if ftv.include?(t)
       dict[t] ||= -(dict.size + 1)
@@ -147,13 +145,21 @@ class Infer
     r
   end
   
+  def collect_free_type_variables(env)
+    ftv = env.values
+    ftv.flatten!
+    ftv.map! {|x| resolve(x) if x.is_a?(Fixnum) && x >= 0 }
+    ftv.compact!
+    ftv
+  end
+  
   def check_let(expected_type, expr, env)
     var, expr, body = expr[1..-1]
     local_env = env.dup
     tvar = newtype
     local_env[var] = tvar
     check(tvar, expr, local_env)
-    local_env[var] = generalize(resolve(tvar), local_env)
+    local_env[var] = generalize(tvar, local_env)
     check(expected_type, body, local_env)
   end
   

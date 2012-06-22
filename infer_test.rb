@@ -14,6 +14,7 @@ class InferTest < Test::Unit::TestCase
   end
   
   def infer(expr, env=default_env)
+    ExprUtil.check expr
     Infer.new(@verbose ||= false).infer(expr, env)
   end
   
@@ -215,63 +216,52 @@ class InferTest < Test::Unit::TestCase
       should "map" do
         assert_equal [[:a, :b], [[:list, :of, :a], [:list, :of, :b]]],
           infer([:fix,
-            [:^, :rec,
-              [:^, :f,
-                [:^, :xs,
-                  [:ifelse, [:null, :xs],
-                    :nil,
-                    [:cons, [:f, [:car, :xs]],
-                            [:rec, :f, [:cdr, :xs]]]]]]]])
+            [:^, [:rec, :f, :xs],
+              [:ifelse, [:null, :xs],
+                :nil,
+                [:cons, [:f, [:car, :xs]],
+                        [:rec, :f, [:cdr, :xs]]]]]])
 
         assert_equal [[:a, :a], [[:list, :of, :a], [:list, :of, :a]]],
           infer([:fix,
-            [:^, :rec,
-              [:^, :f,
-                [:^, :xs,
-                  [:ifelse, [:null, :xs],
-                    :xs,
-                    [:cons, [:f, [:car, :xs]],
-                            [:rec, :f, [:cdr, :xs]]]]]]]])
+            [:^, [:rec, :f, :xs],
+              [:ifelse, [:null, :xs],
+                :xs,
+                [:cons, [:f, [:car, :xs]],
+                        [:rec, :f, [:cdr, :xs]]]]]])
       end
       
       should "filter" do
         assert_equal [[:a, :bool], [[:list, :of, :a], [:list, :of, :a]]],
           infer([:fix,
-            [:^, :rec,
-              [:^, :pred,
-                [:^, :xs,
-                  [:ifelse, [:null, :xs],
-                    :nil,
-                    [:ifelse, [:pred, [:car, :xs]],
-                      [:cons, [:car, :xs],
-                              [:rec, :pred, [:cdr, :xs]]],
-                      [:rec, :pred, [:cdr, :xs]]]]]]]])
+            [:^, [:rec, :pred, :xs],
+              [:ifelse, [:null, :xs],
+                :nil,
+                [:ifelse, [:pred, [:car, :xs]],
+                  [:cons, [:car, :xs],
+                          [:rec, :pred, [:cdr, :xs]]],
+                  [:rec, :pred, [:cdr, :xs]]]]]])
       end
       
       should "foldl" do
         assert_equal [[:a, [:b, :a]], [:a, [[:list, :of, :b], :a]]],
           infer([:fix,
             [:^, :rec,
-              [:^, :f,
-                [:^, :z,
-                  [:^, :xs,
-                    [:ifelse, [:null, :xs],
-                      :z,
-                      [:rec, :f, [:f, :z, [:car, :xs]],
-                                 [:cdr, :xs]]]]]]]])
+              [:^, [:f, :z, :xs],
+                [:ifelse, [:null, :xs],
+                  :z,
+                  [:rec, :f, [:f, :z, [:car, :xs]],
+                             [:cdr, :xs]]]]]])
       end
       
       should "foldr" do
         assert_equal [[:a, [:b, :b]], [:b, [[:list, :of, :a], :b]]],
           infer([:fix,
-            [:^, :rec,
-              [:^, :f,
-                [:^, :z,
-                  [:^, :xs,
-                    [:ifelse, [:null, :xs],
-                      :z,
-                      [:f, [:car, :xs],
-                           [:rec, :f, :z, [:cdr, :xs]]]]]]]]])
+            [:^, [:rec, :f, :z, :xs],
+              [:ifelse, [:null, :xs],
+                :z,
+                [:f, [:car, :xs],
+                     [:rec, :f, :z, [:cdr, :xs]]]]]])
       end
       
       should "append" do

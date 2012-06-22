@@ -106,7 +106,7 @@ class Infer
   end
   
   def check(expected_type, expr, env)
-    log "#{expr.inspect} : #{expected_type.inspect}" if @verbose
+    log "#{expr.inspect} v #{expected_type.inspect}" if @verbose
     case expr
     when Symbol
       t = env[expr] or raise RefError, "type not found for #{expr}"
@@ -129,7 +129,7 @@ class Infer
     when TrueClass, FalseClass
       unify expected_type, :bool
     end
-    log "#{expr.inspect} : #{resolve(expected_type).inspect}" if @verbose
+    log "#{expr.inspect} ^ #{resolve(expected_type).inspect}" if @verbose
   end
   
   def generalize(type, env)
@@ -253,9 +253,11 @@ module ExprUtil
     else
       case e[0]
       when :^
-        "(\\#{e[1]} -> #{prettye e[2]})"
+        "(\\#{e[1]} -> #{pretty e[2]})"
+      when :let
+        "(let #{e[1]} = #{pretty e[2]} in #{e[3..-1].map {|x| pretty x }.join(' ')})"
       else
-        "(#{prettye e[0]} #{prettye e[1]})"
+        "(#{e.map {|x| pretty x }.join(' ')})"
       end
     end
   end
@@ -279,7 +281,11 @@ module ExprUtil
         [gen(depth - 1, *vars), gen(depth - 1, *vars)]
       when 1
         v = var
-        [:^, v, gen(depth - 1, v, *vars)]
+        if rand(2) == 0
+          [:^, v, gen(depth - 1, v, *vars)]
+        else
+          [:let, v, gen(depth - 1, v, *vars), gen(depth - 1, v, *vars)]
+        end
       else
         vars[rand(vars.size)]
       end

@@ -61,7 +61,7 @@ class InferTest < Test::Unit::TestCase
         assert_raises(Infer::TypeMismatchError) { infer([:cons, :nil, :nil, :nil]) }
       end
       
-      should "shouldn't be able to type higher-rank stuff" do
+      should "shouldn't be able to type polymorphic stuff" do
         assert_raises(Infer::TypeMismatchError) { infer([:cons, :nil]) }
         assert_raises(Infer::TypeMismatchError) { infer([:cons, :cons]) }
       end
@@ -177,21 +177,22 @@ class InferTest < Test::Unit::TestCase
       
       should "mono" do
         assert_raises(Infer::TypeMismatchError) do
-          infer [[:^, :f, [:kons, [:f, 3], [:f, [:null, :nil]]]], :kons]
+          infer [[:^, :f, [:kons, [:f, 3], [:f, [:null, :nil]]]], :id]
         end
       end
     end
     
     context "poly" do
       setup do
-        default_env.clear
-        default_env[:cons] = [-1, [[:list, :of, -1], [:list, :of, -1]]]
-        default_env[:car] = [[:list, :of, -1], -1]
-        default_env[:cdr] = [[:list, :of, -1], [:list, :of, -1]]
-        default_env[:null] = [[:list, :of, -1], :bool]
-        default_env[:nil] = [:list, :of, -1]
-        default_env[:fix] = [[-1, -1], -1]
-        default_env[:ifelse] = [:bool, [-1, [-1, -1]]]
+        @default_env = {
+          :cons => [-1, [[:list, :of, -1], [:list, :of, -1]]],
+          :car => [[:list, :of, -1], -1],
+          :cdr => [[:list, :of, -1], [:list, :of, -1]],
+          :null => [[:list, :of, -1], :bool],
+          :nil => [:list, :of, -1],
+          :fix => [[-1, -1], -1],
+          :ifelse => [:bool, [-1, [-1, -1]]],
+        }
       end
       
       should "adapt" do

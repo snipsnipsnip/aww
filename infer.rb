@@ -78,7 +78,7 @@ class Infer
     elsif a.is_a?(Fixnum) || b.is_a?(Fixnum)
       a, b = b, a if b.is_a?(Fixnum)
       raise "unexpected entry" if @cxt.key?(a)
-      @cxt[a] = b if a.is_a?(Fixnum)
+      @cxt[a] = b
     elsif a != b
       raise TypeMismatchError, "type mismatch: #{a.inspect} != #{b.inspect}"
     end
@@ -141,39 +141,57 @@ class Infer
   end
 end
 
-class ExpGen
-  def initialize
-    @n = 0
-  end
-  
-  def var(n=(@n+=1))
-    (n + 9).to_s(36).to_sym
-  end
-  
-  def gen(depth=rand(10), *vars)
-    case depth < 0 ? 2 : depth == 0 && vars.empty? ? 1 : rand(vars.empty? ? 2 : 3)
-    when 0
-      [gen(depth - 1, *vars), gen(depth - 1, *vars)]
-    when 1
-      v = var
-      [:^, v, gen(depth - 1, v, *vars)]
+module ExprUtil
+  module_function
+  def check(e)
+    return true unless e.is_a?(Array)
+    
+    if e.size < 2
+      raise "unexpected array size: #{e.inspect}"
+    elsif :^ == e[0]
+      e.size == 3 and e[1].is_a?(Symbol) and check(e) or raise "malformed lambda: #{e.inspect}"
     else
-      vars[rand(vars.size)]
+      e.each {|x| check e }
     end
   end
-end
 
-
-def prettye(e)
-  case e
-  when Symbol
-    e
-  else
-    case e[0]
-    when :^
-      "(\\#{e[1]} -> #{prettye e[2]})"
+  def pretty(e)
+    case e
+    when Symbol
+      e
     else
-      "(#{prettye e[0]} #{prettye e[1]})"
+      case e[0]
+      when :^
+        "(\\#{e[1]} -> #{prettye e[2]})"
+      else
+        "(#{prettye e[0]} #{prettye e[1]})"
+      end
+    end
+  end
+  
+  def generate(depth=10)
+    ExpGen.new.gen(depth)
+  end
+  
+  class ExpGen
+    def initialize
+      @n = 0
+    end
+    
+    def var(n=(@n+=1))
+      (n + 9).to_s(36).to_sym
+    end
+    
+    def gen(depth=rand(10), *vars)
+      case depth < 0 ? 2 : depth == 0 && vars.empty? ? 1 : rand(vars.empty? ? 2 : 3)
+      when 0
+        [gen(depth - 1, *vars), gen(depth - 1, *vars)]
+      when 1
+        v = var
+        [:^, v, gen(depth - 1, v, *vars)]
+      else
+        vars[rand(vars.size)]
+      end
     end
   end
 end

@@ -98,30 +98,14 @@ class Infer
     when Array
       case expr[0]
       when :^
-        args, body = expr[1..-1]
-        args = Array(args)
-        
-        args.empty? and raise SyntaxError, "malformed lambda: #{expr.inspect}"
-        
-        local_env = env.dup
-        types = args.map {|argname| local_env[argname] = newtype }
-        type = check(body, local_env)
-        types.reverse_each do |t|
-          type = [t, type]
-        end
-        type
+        check_abs(expr, env)
       else
         if expr.size > 2
           check([expr[0..-2], expr[-1]], env)
         elsif expr.size < 2
           raise SyntaxError, "unexpected syntax: #{expr.inspect}"
         else
-          op, arg = expr
-          to = check(op, env)
-          ta = check(arg, env)
-          r = newtype
-          unify [ta, r], to
-          r
+          check_app(expr, env)
         end
       end
     when Numeric
@@ -129,6 +113,30 @@ class Infer
     end
     log "#{expr.inspect} => #{r.inspect}" if @verbose
     r
+  end
+  
+  def check_app(expr, env)
+    op, arg = expr
+    to = check(op, env)
+    ta = check(arg, env)
+    r = newtype
+    unify [ta, r], to
+    r
+  end
+  
+  def check_abs(expr, env)
+    args, body = expr[1..-1]
+    args = Array(args)
+
+    args.empty? and raise SyntaxError, "malformed lambda: #{expr.inspect}"
+
+    local_env = env.dup
+    types = args.map {|argname| local_env[argname] = newtype }
+    type = check(body, local_env)
+    types.reverse_each do |t|
+      type = [t, type]
+    end
+    type
   end
   
   def log(msg)

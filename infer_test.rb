@@ -43,7 +43,7 @@ class InferTest < Test::Unit::TestCase
       should "be typed from result" do
         assert_equal :num, infer([:car, :nil])
         assert_equal :list, infer([:cdr, :nil])
-        assert_equal :bool, infer([:null, :nil])
+        assert_equal :bool, infer(true)
         assert_equal [:list, :list], infer([:cons, 1])
         assert_equal :list, infer([:cons, 1, :nil])
       end
@@ -178,7 +178,7 @@ class InferTest < Test::Unit::TestCase
       
       should "mono" do
         assert_raises(Infer::TypeMismatchError) do
-          infer [[:^, :f, [:kons, [:f, 3], [:f, [:null, :nil]]]], :id]
+          infer [[:^, :f, [:kons, [:f, 3], [:f, true]]], :id]
         end
       end
     end
@@ -201,12 +201,12 @@ class InferTest < Test::Unit::TestCase
         assert_equal [[:list, :of, [:list, :of, :a]], [:list, :of, [:list, :of, :a]]], infer([:cons, :nil])
         assert_equal [[:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]], [:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]]], infer([:cons, :cons])
         assert_equal [:list, :of, :num], infer([:fix, [:cons, 1]])
-        assert_equal [:list, :of, :bool], infer([:fix, [:cons, [:null, :nil]]])
+        assert_equal [:list, :of, :bool], infer([:fix, [:cons, true]])
       end
       
       should "match" do
         assert_raises(Infer::TypeMismatchError) do
-          infer [:cons, 1, [:cons, [:null, :nil], :nil]]
+          infer [:cons, 1, [:cons, true, :nil]]
         end
         assert_raises(Infer::TypeMismatchError) { infer [:car, :ifelse] }
         assert_raises(Infer::TypeMismatchError) { infer [:ifelse, 1] }
@@ -300,20 +300,27 @@ class InferTest < Test::Unit::TestCase
       
         should "keep poly" do
           assert_equal [:pair, :bool, :num], infer([:let, :f, :car,
-            [:pair, [:f, [:cons, [:null, :nil], :nil]],
+            [:pair, [:f, [:cons, true, :nil]],
                     [:f, [:cons, 100, :nil]]]])
           
           assert_equal [:pair, :bool, :num], infer([:let, :f, [:id, :car],
-            [:pair, [:f, [:cons, [:null, :nil], :nil]],
+            [:pair, [:f, [:cons, true, :nil]],
                     [:f, [:cons, 100, :nil]]]])
 
           assert_equal [:pair, :bool, :num], infer([:let, :f, [:^, :x, [:car, :x]],
-            [:pair, [:f, [:cons, [:null, :nil], :nil]],
+            [:pair, [:f, [:cons, true, :nil]],
                     [:f, [:cons, 100, :nil]]]])
           
           assert_equal [:pair, [:pair, :bool, :bool], [:pair, :num, :num]], infer([:let, :f, [:^, :x, [:pair, :x, :x]],
-            [:pair, [:f, [:null, :nil]],
+            [:pair, [:f, true],
                     [:f, 100]]])
+        end
+        
+        should "partially mono" do
+          assert_equal [:bool, [:pair, [:a, [:pair, [:list, :of, :bool], :a]], [:b, [:pair, [:list, :of, :bool], :b]]]], infer(
+            [:^, :x, 
+              [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
+                [:pair, [:g, true], [:g, false]]]])
         end
       end
     end

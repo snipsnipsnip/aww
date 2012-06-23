@@ -27,6 +27,16 @@ class Infer
     rewrite(type) {|type| dict[type] ||= (name = name.succ).to_sym }
   end
   
+  def instantiate_generic_vars(t)
+    dict = []
+    rewrite(t) {|type| type >= 0 ? type : (dict[- type - 1] ||= newtype) }
+  end
+  
+  def refresh_typevars(t)
+    dict = []
+    rewrite(t) {|type| type < 0 ? type : (dict[type] ||= newtype) }
+  end
+  
   def rewrite(type, &blk)
     if type.is_a?(Array)
       type.map {|t| rewrite(t, &blk) }
@@ -34,6 +44,8 @@ class Infer
       type
     elsif type.is_a?(Fixnum)
       yield(type)
+    elsif type.class == Object
+      type
     else
       raise Bug, "unexpected type: #{type.inspect}"
     end
@@ -60,7 +72,10 @@ class Infer
     when nil
       raise Bug, "definition not found (#{prev.join(' -> ')})"
     else
-      raise Bug, "unexpected query: #{n.inspect} (#{prev.join(' -> ')})"
+      unless n.class == Object
+        raise Bug, "unexpected query: #{n.inspect} (#{prev.join(' -> ')})"
+      end
+      n
     end
     log "#{n.inspect} => #{r.inspect}" if @verbose
     r
@@ -102,17 +117,12 @@ class Infer
     end
   end
   
-  def refresh_typevars(t)
-    dict = []
-    rewrite(t) {|type| type >= 0 ? type : (dict[- type - 1] ||= newtype) }
-  end
-  
   def check(expected_type, expr, env)
     log "#{expr.inspect} v #{expected_type.inspect}" if @verbose
     case expr
     when Symbol
       t = env[expr] or raise RefError, "type not found for #{expr}"
-      unify expected_type, refresh_typevars(t)
+      unify expected_type, instantiate_generic_vars(t)
     when Array
       if expr.size < 2
         raise SyntaxError, "unexpected syntax: #{expr.inspect}"
@@ -123,6 +133,8 @@ class Infer
         check_abs(expected_type, expr, env)
       when :let
         check_let(expected_type, expr, env)
+      when :cast
+        check_annot(expected_type, expr, env)
       else
         check_app(expected_type, expr, env)
       end
@@ -147,8 +159,8 @@ class Infer
     r
   end
   
-  def collect_free_type_variables(env)
-    ftv = env.values
+  def collect_free_type_variables(xs)
+    ftv = xs.is_a?(Hash) ? xs.values : [xs]
     ftv.flatten!
     ftv.map! {|x| resolve(x) if x.is_a?(Fixnum) && x >= 0 }
     ftv.compact!
@@ -193,11 +205,54 @@ class Infer
     end
   end
   
+  def check_annot(expected_type, expr, env)
+    tannot, body = expr[1..-1]
+    tannot = refresh_typevars(tannot)
+    tbody = infer_raw(body, env)
+    unify_generic(tbody, tannot)
+    unify(expected_type, instantiate_generic_vars(tannot))
+  end
+  
+  def unify_generic(a, b)
+    if generic?(b)
+      skolem_vars, b2 = skolemise(b)
+      unify_generic(a, b2)
+      if !skolem_vars.empty? && collect_free_type_variables(a).any? {|v| skolem_vars.include?(v) }
+        raise TypeMismatchError, "#{a.inspect} is more polymorphic than #{b.inspect}"
+      end
+    elsif generic?(a)
+      unify_generic instantiate_generic_vars(a), b
+    else
+      unify a, b
+    end
+  end
+  
+  def generic?(type)
+    if type.is_a?(Array)
+      type.any? {|x| generic? x }
+    elsif type.is_a?(Fixnum) && type < 0
+      true
+    else
+      false
+    end
+  end
+  
+  def skolemise(sigma)
+    vars = []
+    t = rewrite(sigma) do |type|
+      next type if type >= 0
+      skolem = Object.new
+      vars << skolem
+      skolem
+    end
+    [vars, t]
+  end
+  
   def log(msg)
     c = caller
     func = c[0][c[0].index('`').succ..-2]
     indent = c.size - (@initial ||= c.size)
-    warn "#{' ' * indent}#{func}: #{msg}"
+    warn "#{' ' * [indent, 0].max}#{func}: #{msg}"
   end
   
   class Error < RuntimeError
@@ -242,6 +297,9 @@ module ExprUtil
         e[1].is_a?(Symbol) or
           raise Infer::SyntaxError, "malformed let: #{e.inspect}"
         stack << e[2] << e[3]
+      elsif :cast == e[0]
+        e.size == 3 or
+        stack << e[2]
       else
         stack.concat e
       end
@@ -258,6 +316,8 @@ module ExprUtil
         "(\\#{e[1]} -> #{pretty e[2]})"
       when :let
         "(let #{e[1]} = #{pretty e[2]} in #{e[3..-1].map {|x| pretty x }.join(' ')})"
+      when :cast
+        "(#{pretty e[2]} :: #{pretty e[1]})"
       else
         "(#{e.map {|x| pretty x }.join(' ')})"
       end

@@ -182,167 +182,187 @@ class InferTest < Test::Unit::TestCase
         end
       end
     end
+  end
+  
+  context "poly" do
+    setup do
+      @default_env = {
+        :cons => [-1, [[:list, :of, -1], [:list, :of, -1]]],
+        :car => [[:list, :of, -1], -1],
+        :cdr => [[:list, :of, -1], [:list, :of, -1]],
+        :null => [[:list, :of, -1], :bool],
+        :nil => [:list, :of, -1],
+        :fix => [[-1, -1], -1],
+        :ifelse => [:bool, [-1, [-1, -1]]],
+      }
+    end
     
-    context "poly" do
-      setup do
-        @default_env = {
-          :cons => [-1, [[:list, :of, -1], [:list, :of, -1]]],
-          :car => [[:list, :of, -1], -1],
-          :cdr => [[:list, :of, -1], [:list, :of, -1]],
-          :null => [[:list, :of, -1], :bool],
-          :nil => [:list, :of, -1],
-          :fix => [[-1, -1], -1],
-          :ifelse => [:bool, [-1, [-1, -1]]],
-        }
+    should "adapt" do
+      assert_equal [[:list, :of, :num], [:list, :of, :num]], infer([:cons, 1])
+      assert_equal [[:list, :of, [:list, :of, :a]], [:list, :of, [:list, :of, :a]]], infer([:cons, :nil])
+      assert_equal [[:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]], [:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]]], infer([:cons, :cons])
+      assert_equal [:list, :of, :num], infer([:fix, [:cons, 1]])
+      assert_equal [:list, :of, :bool], infer([:fix, [:cons, true]])
+    end
+    
+    should "match" do
+      assert_raises(Infer::TypeMismatchError) do
+        infer [:cons, 1, [:cons, true, :nil]]
       end
-      
-      should "adapt" do
-        assert_equal [[:list, :of, :num], [:list, :of, :num]], infer([:cons, 1])
-        assert_equal [[:list, :of, [:list, :of, :a]], [:list, :of, [:list, :of, :a]]], infer([:cons, :nil])
-        assert_equal [[:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]], [:list, :of, [:a, [[:list, :of, :a], [:list, :of, :a]]]]], infer([:cons, :cons])
-        assert_equal [:list, :of, :num], infer([:fix, [:cons, 1]])
-        assert_equal [:list, :of, :bool], infer([:fix, [:cons, true]])
-      end
-      
-      should "match" do
-        assert_raises(Infer::TypeMismatchError) do
-          infer [:cons, 1, [:cons, true, :nil]]
-        end
-        assert_raises(Infer::TypeMismatchError) { infer [:car, :ifelse] }
-        assert_raises(Infer::TypeMismatchError) { infer [:ifelse, 1] }
-        assert_raises(Infer::TypeMismatchError) { infer [:null, :fix] }
-      end
-      
-      should "map" do
-        assert_equal [[:a, :b], [[:list, :of, :a], [:list, :of, :b]]],
-          infer([:fix,
-            [:^, [:rec, :f, :xs],
-              [:ifelse, [:null, :xs],
-                :nil,
-                [:cons, [:f, [:car, :xs]],
-                        [:rec, :f, [:cdr, :xs]]]]]])
+      assert_raises(Infer::TypeMismatchError) { infer [:car, :ifelse] }
+      assert_raises(Infer::TypeMismatchError) { infer [:ifelse, 1] }
+      assert_raises(Infer::TypeMismatchError) { infer [:null, :fix] }
+    end
+    
+    should "map" do
+      assert_equal [[:a, :b], [[:list, :of, :a], [:list, :of, :b]]],
+        infer([:fix,
+          [:^, [:rec, :f, :xs],
+            [:ifelse, [:null, :xs],
+              :nil,
+              [:cons, [:f, [:car, :xs]],
+                      [:rec, :f, [:cdr, :xs]]]]]])
 
-        assert_equal [[:a, :a], [[:list, :of, :a], [:list, :of, :a]]],
-          infer([:fix,
-            [:^, [:rec, :f, :xs],
-              [:ifelse, [:null, :xs],
-                :xs,
-                [:cons, [:f, [:car, :xs]],
-                        [:rec, :f, [:cdr, :xs]]]]]])
-      end
-      
-      should "filter" do
-        assert_equal [[:a, :bool], [[:list, :of, :a], [:list, :of, :a]]],
-          infer([:fix,
-            [:^, [:rec, :pred, :xs],
-              [:ifelse, [:null, :xs],
-                :nil,
-                [:ifelse, [:pred, [:car, :xs]],
-                  [:cons, [:car, :xs],
-                          [:rec, :pred, [:cdr, :xs]]],
-                  [:rec, :pred, [:cdr, :xs]]]]]])
-      end
-      
-      should "foldl" do
-        assert_equal [[:a, [:b, :a]], [:a, [[:list, :of, :b], :a]]],
-          infer([:fix,
-            [:^, :rec,
-              [:^, [:f, :z, :xs],
-                [:ifelse, [:null, :xs],
-                  :z,
-                  [:rec, :f, [:f, :z, [:car, :xs]],
-                             [:cdr, :xs]]]]]])
-      end
-      
-      should "foldr" do
-        assert_equal [[:a, [:b, :b]], [:b, [[:list, :of, :a], :b]]],
-          infer([:fix,
-            [:^, [:rec, :f, :z, :xs],
+      assert_equal [[:a, :a], [[:list, :of, :a], [:list, :of, :a]]],
+        infer([:fix,
+          [:^, [:rec, :f, :xs],
+            [:ifelse, [:null, :xs],
+              :xs,
+              [:cons, [:f, [:car, :xs]],
+                      [:rec, :f, [:cdr, :xs]]]]]])
+    end
+    
+    should "filter" do
+      assert_equal [[:a, :bool], [[:list, :of, :a], [:list, :of, :a]]],
+        infer([:fix,
+          [:^, [:rec, :pred, :xs],
+            [:ifelse, [:null, :xs],
+              :nil,
+              [:ifelse, [:pred, [:car, :xs]],
+                [:cons, [:car, :xs],
+                        [:rec, :pred, [:cdr, :xs]]],
+                [:rec, :pred, [:cdr, :xs]]]]]])
+    end
+    
+    should "foldl" do
+      assert_equal [[:a, [:b, :a]], [:a, [[:list, :of, :b], :a]]],
+        infer([:fix,
+          [:^, :rec,
+            [:^, [:f, :z, :xs],
               [:ifelse, [:null, :xs],
                 :z,
-                [:f, [:car, :xs],
-                     [:rec, :f, :z, [:cdr, :xs]]]]]])
-      end
-      
-      should "append" do
-        assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
-          infer([:fix,
-            [:^, :rec,
-              [:^, :xs,
-                [:^, :ys,
-                  [:ifelse, [:null, :xs],
-                    :ys,
-                    [:cons, [:car, :xs],
-                            [:rec, [:cdr, :xs], :ys]]]]]]])
-        
-        e = default_env.merge({ :foldr => [[-1, [-2, -2]], [-2, [[:list, :of, -1], -2]]] })
-        assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
-          infer([:foldr, :cons], e)
-      end
+                [:rec, :f, [:f, :z, [:car, :xs]],
+                           [:cdr, :xs]]]]]])
+    end
     
-      context "alternative" do
-        setup do
-          default_env.clear
-          default_env[:append] = [[-1], [[-1], [-1]]]
-          default_env[:wrap] = [-1, [-1]]
-        end
-        
-        should "hoge" do
-          assert_equal [[[:a], [[:a], [:a]]]], infer([:wrap, :append])
-        end
-      end
+    should "foldr" do
+      assert_equal [[:a, [:b, :b]], [:b, [[:list, :of, :a], :b]]],
+        infer([:fix,
+          [:^, [:rec, :f, :z, :xs],
+            [:ifelse, [:null, :xs],
+              :z,
+              [:f, [:car, :xs],
+                   [:rec, :f, :z, [:cdr, :xs]]]]]])
+    end
     
-      context "let" do
-        setup do
-          default_env[:pair] = [-1, [-2, [:pair, -1, -2]]]
-          default_env[:id] = [-1, -1]
-        end
-      
-        should "keep poly" do
-          assert_equal [:pair, :bool, :num], infer([:let, :f, :car,
-            [:pair, [:f, [:cons, true, :nil]],
-                    [:f, [:cons, 100, :nil]]]])
-          
-          assert_equal [:pair, :bool, :num], infer([:let, :f, [:id, :car],
-            [:pair, [:f, [:cons, true, :nil]],
-                    [:f, [:cons, 100, :nil]]]])
-
-          assert_equal [:pair, :bool, :num], infer([:let, :f, [:^, :x, [:car, :x]],
-            [:pair, [:f, [:cons, true, :nil]],
-                    [:f, [:cons, 100, :nil]]]])
-          
-          assert_equal [:pair, [:pair, :bool, :bool], [:pair, :num, :num]], infer([:let, :f, [:^, :x, [:pair, :x, :x]],
-            [:pair, [:f, true],
-                    [:f, 100]]])
-        end
-        
-        should "partially mono" do
-          assert_equal [:bool, [:pair, [:a, [:pair, [:list, :of, :bool], :a]], [:b, [:pair, [:list, :of, :bool], :b]]]], infer(
-            [:^, :x, 
-              [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
-                [:pair, [:g, true], [:g, false]]]])
-          
-          assert_raises(Infer::TypeMismatchError) do
-            infer([:^, :x, 
-              [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
-                [:pair, [:g, true], [:g, 3]]]])
-          end
-        end
-        
-        should "rec" do
-          assert_equal :a, infer([:let, :x, :x, :x])
-          assert_equal [:list, :of, :num], infer([:let, :x, [:cons, 1, :x], :x])
-          assert_equal [:list, :of, [[:list, :of, :a], :a]], infer([:let, :x, [:cons, :car, [:cons, :car, :x]], :x])
-        
-          assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
-            infer([:let, :rec,
-              [:^, [:xs, :ys],
+    should "append" do
+      assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
+        infer([:fix,
+          [:^, :rec,
+            [:^, :xs,
+              [:^, :ys,
                 [:ifelse, [:null, :xs],
                   :ys,
                   [:cons, [:car, :xs],
-                          [:rec, [:cdr, :xs], :ys]]]],
-              :rec])
+                          [:rec, [:cdr, :xs], :ys]]]]]]])
+      
+      e = default_env.merge({ :foldr => [[-1, [-2, -2]], [-2, [[:list, :of, -1], -2]]] })
+      assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
+        infer([:foldr, :cons], e)
+    end
+  
+    context "alternative" do
+      setup do
+        default_env.clear
+        default_env[:append] = [[-1], [[-1], [-1]]]
+        default_env[:wrap] = [-1, [-1]]
+      end
+      
+      should "hoge" do
+        assert_equal [[[:a], [[:a], [:a]]]], infer([:wrap, :append])
+      end
+    end
+  
+    context "let" do
+      setup do
+        default_env[:pair] = [-1, [-2, [:pair, -1, -2]]]
+        default_env[:id] = [-1, -1]
+      end
+    
+      should "keep poly" do
+        assert_equal [:pair, :bool, :num], infer([:let, :f, :car,
+          [:pair, [:f, [:cons, true, :nil]],
+                  [:f, [:cons, 100, :nil]]]])
+        
+        assert_equal [:pair, :bool, :num], infer([:let, :f, [:id, :car],
+          [:pair, [:f, [:cons, true, :nil]],
+                  [:f, [:cons, 100, :nil]]]])
+
+        assert_equal [:pair, :bool, :num], infer([:let, :f, [:^, :x, [:car, :x]],
+          [:pair, [:f, [:cons, true, :nil]],
+                  [:f, [:cons, 100, :nil]]]])
+        
+        assert_equal [:pair, [:pair, :bool, :bool], [:pair, :num, :num]], infer([:let, :f, [:^, :x, [:pair, :x, :x]],
+          [:pair, [:f, true],
+                  [:f, 100]]])
+      end
+      
+      should "partially mono" do
+        assert_equal [:bool, [:pair, [:a, [:pair, [:list, :of, :bool], :a]], [:b, [:pair, [:list, :of, :bool], :b]]]], infer(
+          [:^, :x, 
+            [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
+              [:pair, [:g, true], [:g, false]]]])
+        
+        assert_raises(Infer::TypeMismatchError) do
+          infer([:^, :x, 
+            [:let, :g, [:^, [:y, :z], [:pair, [:cons, :x, [:cons, :y, :nil]], :z]],
+              [:pair, [:g, true], [:g, 3]]]])
         end
+      end
+      
+      should "rec" do
+        assert_equal :a, infer([:let, :x, :x, :x])
+        assert_equal [:list, :of, :num], infer([:let, :x, [:cons, 1, :x], :x])
+        assert_equal [:list, :of, [[:list, :of, :a], :a]], infer([:let, :x, [:cons, :car, [:cons, :car, :x]], :x])
+      
+        assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
+          infer([:let, :rec,
+            [:^, [:xs, :ys],
+              [:ifelse, [:null, :xs],
+                :ys,
+                [:cons, [:car, :xs],
+                        [:rec, [:cdr, :xs], :ys]]]],
+            :rec])
+      end
+    end
+    
+    context "annot" do
+      should "simple" do
+        assert_equal :bool, infer([:cast, :bool, true])
+        assert_equal :num, infer([:cast, :num, 100])
+        assert_raises(Infer::TypeMismatchError) { infer([:cast, :bool, 3]) }
+        assert_raises(Infer::TypeMismatchError) { infer([:cast, [:num, :num], 100]) }
+        assert_equal :bool, infer([:cast, :bool, [:let, :a, :a, :a]])
+        assert_equal [:bool, :bool], infer([:cast, [:bool, :bool], [:let, :a, :a, :a]])
+      end
+      
+      should "func" do
+        assert_equal [:a, :a], infer([:cast, [1, 1], [:^, :x, :x]])
+        assert_equal [:bool, :bool], infer([:cast, [:bool, :bool], [:^, :x, :x]])
+        assert_equal [:num, :num], infer([:cast, [:num, :num], [:^, :x, :x]])
+        assert_equal [:a, [:a, :a]], infer([:cast, [1, [1, 1]], [:^, [:x, :y], :x]])
+        assert_raises(Infer::TypeMismatchError) { infer([:cast, [:num, :bool], [:^, :x, :x]]) }
+        assert_raises(Infer::TypeMismatchError) { infer([[:cast, [:num, :num], [:^, :x, :x]], true]) }
       end
     end
   end

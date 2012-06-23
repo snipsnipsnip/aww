@@ -9,6 +9,7 @@ class Infer
   end
   
   def infer(expr, env)
+    log "#{expr.inspect} in #{env.inspect}" if @verbose
     make_typevar_readable resolve(infer_raw(expr, env))
   end
   

@@ -23,7 +23,8 @@ class Infer
   
   def make_typevar_readable(type)
     dict = {}
-    rewrite(type) {|type| dict[type] ||= (dict.size + 10).to_s(36).to_sym }
+    name = "`"
+    rewrite(type) {|type| dict[type] ||= (name = name.succ).to_sym }
   end
   
   def rewrite(type, &blk)
@@ -269,11 +270,11 @@ module ExprUtil
   
   class ExpGen
     def initialize
-      @n = 0
+      @n = "`"
     end
     
-    def var(n=(@n+=1))
-      (n + 9).to_s(36).to_sym
+    def var
+      (@n = @n.succ).to_sym
     end
     
     def gen(depth=rand(10), *vars)

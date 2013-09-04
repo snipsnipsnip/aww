@@ -299,6 +299,10 @@ class InferTest < Test::Unit::TestCase
         end
       
         should "keep poly" do
+          assert_equal [:pair, :bool, :num], infer([:let, :f, :id,
+            [:pair, [:f, true],
+                    [:f, 100]]])
+          
           assert_equal [:pair, :bool, :num], infer([:let, :f, :car,
             [:pair, [:f, [:cons, true, :nil]],
                     [:f, [:cons, 100, :nil]]]])
@@ -333,6 +337,20 @@ class InferTest < Test::Unit::TestCase
           assert_equal :a, infer([:let, :x, :x, :x])
           assert_equal [:list, :of, :num], infer([:let, :x, [:cons, 1, :x], :x])
           assert_equal [:list, :of, [[:list, :of, :a], :a]], infer([:let, :x, [:cons, :car, [:cons, :car, :x]], :x])
+        
+        assert_equal :num,
+          infer([:let, :fact,
+                  [:^, :n,
+                    [:ifelse, [:==, :n, 0],
+                      1,
+                      [:*, :n, [:fact, [:-, :n, 1]]]]],
+                  [:fact, 1]], {
+                   :'==' => [-1, [-1, :bool]],
+                   :'*' => [:num, [:num, :num]],
+                   :'-' => [:num, [:num, :num]],
+                   :ifelse => [:bool, [-1, [-1, -1]]]
+                 })
+
         
           assert_equal [[:list, :of, :a], [[:list, :of, :a], [:list, :of, :a]]],
             infer([:let, :rec,
